@@ -1,0 +1,24 @@
+Backport of php-src 8.5 "Do not use RTLD_DEEPBIND if dlmopen is available"
+
+PHP 8.4 dlopen()s shared extensions with RTLD_DEEPBIND. The php binary is a PIE
+with copy relocations for libxml2's data symbols (xmlStringText, xmlFree, ...),
+so a library loaded with an extension - libxslt for xsl - binds to libxml2's own
+xmlStringText while PHP and libxml2 use the binary's copy. libxslt then no
+longer recognises text nodes, and adjacent text is lost: "[hello|world]"
+comes out as "[hell]". PHP 8.5 drops RTLD_DEEPBIND where dlmopen() exists.
+
+--- a/Zend/zend_portability.h	2026-09-29 16:48:06.228033981 +0300
++++ b/Zend/zend_portability.h	2026-09-29 16:48:06.261254333 +0300
+@@ -162,7 +162,11 @@
+ # if defined(RTLD_GROUP) && defined(RTLD_WORLD) && defined(RTLD_PARENT)
+ #  define DL_LOAD(libname)			dlopen(libname, PHP_RTLD_MODE | RTLD_GLOBAL | RTLD_GROUP | RTLD_WORLD | RTLD_PARENT)
+ # elif defined(RTLD_DEEPBIND) && !defined(__SANITIZE_ADDRESS__) && !__has_feature(memory_sanitizer)
+-#  define DL_LOAD(libname)			dlopen(libname, PHP_RTLD_MODE | RTLD_GLOBAL | RTLD_DEEPBIND)
++#  if defined(LM_ID_NEWLM)
++#    define DL_LOAD(libname)			dlopen(libname, PHP_RTLD_MODE | RTLD_GLOBAL)
++#  else
++#    define DL_LOAD(libname)			dlopen(libname, PHP_RTLD_MODE | RTLD_GLOBAL | RTLD_DEEPBIND)
++#  endif
+ # else
+ #  define DL_LOAD(libname)			dlopen(libname, PHP_RTLD_MODE | RTLD_GLOBAL)
+ # endif

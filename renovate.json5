@@ -1,0 +1,87 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended",
+        "helpers:pinGitHubActionDigests"
+    ],
+    "major": {
+        "dependencyDashboardApproval": true
+    },
+    "enabledManagers": [
+        "github-actions",
+        "custom.jsonata"
+    ],
+    "prHourlyLimit": 0,
+    "labels": [
+        "update"
+    ],
+    "vulnerabilityAlerts": {
+        "labels": [
+            "update",
+            "security"
+        ]
+    },
+    // each PHP version stays on its minor
+    "packageRules": [
+        {
+            "matchPackageNames": [
+                "docker.io/library/php"
+            ],
+            "matchCurrentVersion": "~8.4.0",
+            "allowedVersions": "~8.4.0"
+        },
+        {
+            "matchPackageNames": [
+                "docker.io/library/php"
+            ],
+            "matchCurrentVersion": "~8.5.0",
+            "allowedVersions": "~8.5.0"
+        },
+        {
+            // the MySQL test service stays on the 8.4 LTS
+            "matchPackageNames": [
+                "docker.io/library/mysql"
+            ],
+            "allowedVersions": "~8.4.0"
+        },
+        {
+            "description": "pecl version extractor",
+            "matchDatasources": [
+                "custom.pecl"
+            ],
+            "extractVersion": "version=(?<version>.+)$"
+        }
+    ],
+    "customManagers": [
+        {
+            "customType": "jsonata",
+            "fileFormat": "json",
+            "managerFilePatterns": [
+                "/^packages\\.json$/"
+            ],
+            "matchStrings": [
+                // docker tags, as in docker-php
+                "$each(php.versions, function($v) { { \"depName\": \"docker.io/library/php\", \"datasource\": \"docker\", \"versioning\": \"semver\", \"currentValue\": $v.version } })",
+                "{ \"depName\": \"composer/composer\", \"datasource\": \"github-releases\", \"versioning\": \"semver\", \"currentValue\": composer.version }",
+                "{ \"depName\": \"org.freedesktop.Sdk\", \"datasource\": \"custom.flathub-runtime\", \"versioning\": \"loose\", \"currentValue\": sdk.branch }",
+                "$each(extensions, function($v, $k) { $v.source = \"pecl\" ? { \"depName\": $exists($v.package) ? $v.package : $k, \"datasource\": \"custom.pecl\", \"versioning\": \"semver\", \"currentValue\": $v.version } : $exists($v.renovate) ? { \"depName\": $v.renovate.package, \"datasource\": $v.renovate.datasource, \"versioning\": $v.renovate.versioning, \"extractVersion\": $v.renovate.extractVersion, \"currentValue\": $v.version } })",
+                "services.*.sources[$exists(renovate)].{ \"depName\": renovate.package, \"datasource\": renovate.datasource, \"versioning\": renovate.versioning, \"extractVersion\": renovate.extractVersion, \"currentValue\": version }",
+                "$each(deps, function($v) { $exists($v.renovate) ? { \"depName\": $v.renovate.package, \"datasource\": $v.renovate.datasource, \"versioning\": $v.renovate.versioning, \"extractVersion\": $v.renovate.extractVersion, \"currentValue\": $v.version } })"
+            ]
+        }
+    ],
+    "customDatasources": {
+        "pecl": {
+            "format": "html",
+            "defaultRegistryUrlTemplate": "https://pecl.php.net/package-changelog.php?package={{packageName}}"
+        },
+        // org.freedesktop.Sdk branches from keys "<id>/<arch>/<branch>"
+        "flathub-runtime": {
+            "format": "json",
+            "defaultRegistryUrlTemplate": "https://flathub.org/api/v2/runtimes",
+            "transformTemplates": [
+                "{ \"releases\": $each($$, function($v, $k) { $k })[$contains(\"org.freedesktop.Sdk/x86_64/\")] ~> $map(function($k) { { \"version\": $split($k, \"/\")[2] } }) }"
+            ]
+        }
+    }
+}

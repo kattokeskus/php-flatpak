@@ -1,0 +1,746 @@
+{
+    "name": "kattokeskus",
+    "sdk": {
+        "id": "org.freedesktop.Sdk",
+        "branch": "25.08"
+    },
+    "composer": {
+        "version": "2.9.3"
+    },
+    "php": {
+        "config-opts": [
+            "--enable-option-checking=fatal",
+            "--enable-libgcc",
+            "--disable-cgi",
+            "--with-config-file-path={prefix}/etc/php",
+            "--with-config-file-scan-dir={prefix}/etc/php/conf.d:/app/etc/php:/var/config/php/{minor}/ini",
+            "--enable-mbstring",
+            "--enable-mysqlnd",
+            "--with-curl",
+            "--with-openssl",
+            "--with-system-ciphers",
+            "--with-pdo-sqlite",
+            "--with-readline",
+            "--with-sqlite3",
+            "--with-zlib"
+        ],
+        "ini": {
+            "10-opcache": [
+                "opcache.enable=1",
+                "opcache.enable_cli=1"
+            ]
+        },
+        "patches": [
+            "phpdbg-scan-dir.patch"
+        ],
+        "versions": {
+            "8.4": {
+                "version": "8.4.26",
+                "config-opts": [
+                    "--enable-opcache"
+                ],
+                "ini": {
+                    "10-opcache": [
+                        "zend_extension=opcache.so"
+                    ]
+                },
+                "patches": [
+                    "php-8.4-no-deepbind.patch"
+                ]
+            },
+            "8.5": {
+                "version": "8.5.11"
+            }
+        }
+    },
+    "extensions": {
+        "apcu": {
+            "source": "pecl",
+            "version": "5.1.28"
+        },
+        "bcmath": {
+            "source": "bundled"
+        },
+        "bz2": {
+            "source": "bundled"
+        },
+        "calendar": {
+            "source": "bundled"
+        },
+        "dba": {
+            "source": "bundled",
+            "deps": [
+                "lmdb"
+            ],
+            "config-opts": [
+                "--with-gdbm",
+                "--with-lmdb={prefix}"
+            ]
+        },
+        "enchant": {
+            "source": "bundled",
+            "deps": [
+                "enchant"
+            ]
+        },
+        "exif": {
+            "source": "bundled"
+        },
+        "ffi": {
+            "source": "bundled"
+        },
+        "ftp": {
+            "source": "bundled",
+            "config-opts": [
+                "--with-ftp-ssl"
+            ],
+            "tests": {
+                "with": [
+                    "pcntl"
+                ]
+            }
+        },
+        "gd": {
+            "source": "bundled",
+            "config-opts": [
+                "--with-freetype",
+                "--with-jpeg",
+                "--with-webp",
+                "--with-xpm",
+                "--with-avif"
+            ]
+        },
+        "gettext": {
+            "source": "bundled"
+        },
+        "gmp": {
+            "source": "bundled"
+        },
+        "imagick": {
+            "source": "pecl",
+            "version": "3.8.1",
+            "deps": [
+                "imagemagick"
+            ],
+            "config-opts": [
+                "--with-imagick={prefix}"
+            ],
+            "tests": {
+                "comment": "ImageMagick 7.1.2 changed colour similarity: Imagick/imagick#737",
+                "skip": [
+                    "tests/024-ispixelsimilar.phpt"
+                ]
+            }
+        },
+        "intl": {
+            "source": "bundled"
+        },
+        "ldap": {
+            "source": "bundled",
+            "deps": [
+                "openldap"
+            ],
+            "config-opts": [
+                "--with-ldap={prefix}",
+                "--with-ldap-sasl"
+            ],
+            "tests": {
+                "comment": "LDAPSASL_MECH: the default SCRAM-SHA-512 fails locally without a user name; ldap_sasl_bind_error.phpt expects the server's error.",
+                "services": [
+                    "ldap"
+                ],
+                "env": {
+                    "LDAP_TEST_HOST": "127.0.0.1",
+                    "LDAP_TEST_PORT": "3890",
+                    "LDAP_TEST_URI": "ldap://127.0.0.1:3890",
+                    "LDAP_TEST_LDAPS_PORT": "6360",
+                    "LDAPSASL_MECH": "DIGEST-MD5"
+                }
+            }
+        },
+        "mysqli": {
+            "source": "bundled",
+            "tests": {
+                "services": [
+                    "mysql"
+                ],
+                "env": {
+                    "MYSQL_TEST_HOST": "127.0.0.1",
+                    "MYSQL_TEST_PORT": "13306",
+                    "MYSQL_TEST_USER": "root",
+                    "MYSQL_TEST_PASSWD": "",
+                    "MYSQL_TEST_DB": "test"
+                }
+            }
+        },
+        "pcntl": {
+            "source": "bundled"
+        },
+        "pdo_dblib": {
+            "source": "bundled",
+            "deps": [
+                "freetds"
+            ],
+            "config-opts": [
+                "--with-pdo-dblib={prefix}"
+            ]
+        },
+        "pdo_firebird": {
+            "source": "bundled",
+            "deps": [
+                "libtommath",
+                "firebird"
+            ],
+            "config-opts": [
+                "--with-pdo-firebird={prefix}"
+            ],
+            "tests": {
+                "with": [
+                    "sockets"
+                ],
+                "services": [
+                    "firebird"
+                ]
+            }
+        },
+        "pdo_mysql": {
+            "source": "bundled",
+            "tests": {
+                "services": [
+                    "mysql"
+                ],
+                "env": {
+                    "PDO_MYSQL_TEST_DSN": "mysql:host=127.0.0.1;port=13306;dbname=test",
+                    "PDO_MYSQL_TEST_HOST": "127.0.0.1",
+                    "PDO_MYSQL_TEST_PORT": "13306",
+                    "PDO_MYSQL_TEST_USER": "root",
+                    "PDO_MYSQL_TEST_PASS": "",
+                    "PDO_MYSQL_TEST_DB": "test"
+                }
+            }
+        },
+        "pdo_odbc": {
+            "source": "bundled",
+            "deps": [
+                "unixodbc"
+            ],
+            "config-opts": [
+                "--with-pdo-odbc=unixODBC,{prefix}"
+            ]
+        },
+        "pdo_pgsql": {
+            "source": "bundled",
+            "deps": [
+                "libpq"
+            ],
+            "config-opts": [
+                "--with-pdo-pgsql={prefix}"
+            ],
+            "tests": {
+                "services": [
+                    "postgres"
+                ],
+                "env": {
+                    "PDO_PGSQL_TEST_DSN": "pgsql:host=127.0.0.1 port=15432 dbname=test user=postgres password=postgres"
+                }
+            }
+        },
+        "pgsql": {
+            "source": "bundled",
+            "deps": [
+                "libpq"
+            ],
+            "config-opts": [
+                "--with-pgsql={prefix}"
+            ],
+            "tests": {
+                "services": [
+                    "postgres"
+                ],
+                "env": {
+                    "PGSQL_TEST_CONNSTR": "host=127.0.0.1 port=15432 dbname=test user=postgres password=postgres"
+                }
+            }
+        },
+        "redis": {
+            "source": "pecl",
+            "version": "6.3.0",
+            "config-opts": [
+                "--enable-redis-lzf",
+                "--enable-redis-zstd",
+                "--enable-redis-lz4",
+                "--with-libzstd",
+                "--with-liblz4"
+            ]
+        },
+        "shmop": {
+            "source": "bundled"
+        },
+        "snmp": {
+            "source": "bundled",
+            "deps": [
+                "net-snmp"
+            ],
+            "config-opts": [
+                "--with-snmp={prefix}"
+            ],
+            "tests": {
+                "services": [
+                    "snmp"
+                ],
+                "env": {
+                    "SNMP_HOSTNAME": "127.0.0.1",
+                    "SNMP_PORT": "1161",
+                    "SNMP_MIBDIR": "{prefix}/share/snmp/mibs"
+                }
+            }
+        },
+        "soap": {
+            "source": "bundled"
+        },
+        "sockets": {
+            "source": "bundled"
+        },
+        "spx": {
+            "source": "url",
+            "version": "0.4.22",
+            "url": "https://github.com/NoiseByNorthwest/php-spx/archive/refs/tags/v{version}.tar.gz",
+            "config-opts": [
+                "--with-spx-assets-dir={prefix}/share/misc/php-spx/assets"
+            ],
+            "ini": [
+                "spx.http_ui_assets_dir={prefix}/share/misc/php-spx/assets/web-ui"
+            ],
+            "priority": 50,
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "NoiseByNorthwest/php-spx",
+                "extractVersion": "^v(?<version>.+)$"
+            }
+        },
+        "sysvmsg": {
+            "source": "bundled"
+        },
+        "sysvsem": {
+            "source": "bundled",
+            "tests": {
+                "with": [
+                    "pcntl",
+                    "sysvshm"
+                ]
+            }
+        },
+        "sysvshm": {
+            "source": "bundled",
+            "tests": {
+                "with": [
+                    "shmop"
+                ]
+            }
+        },
+        "tidy": {
+            "source": "bundled",
+            "deps": [
+                "tidy"
+            ],
+            "config-opts": [
+                "--with-tidy={prefix}"
+            ]
+        },
+        "vips": {
+            "source": "none",
+            "deps": [
+                "libvips"
+            ],
+            "ini": [
+                "ffi.enable=On",
+                "zend.max_allowed_stack_size=-1"
+            ],
+            "requires": [
+                "ffi"
+            ]
+        },
+        "xdebug": {
+            "source": "pecl",
+            "version": "3.5.3",
+            "zend": true,
+            "priority": 50
+        },
+        "xhprof": {
+            "source": "pecl",
+            "version": "2.3.10",
+            "subdir": "extension"
+        },
+        "xsl": {
+            "source": "bundled"
+        },
+        "zip": {
+            "source": "bundled",
+            "deps": [
+                "libzip"
+            ]
+        }
+    },
+    "deps": {
+        "enchant": {
+            "version": "2.8.21",
+            "url": "https://github.com/rrthomas/enchant/releases/download/v{version}/enchant-{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--with-hunspell",
+                "--without-aspell",
+                "--without-nuspell",
+                "--without-hspell",
+                "--without-voikko",
+                "--without-applespell",
+                "--without-zemberek"
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "rrthomas/enchant",
+                "extractVersion": "^v(?<version>.+)$"
+            }
+        },
+        "firebird": {
+            "comment": "Prebuilt client; the build number in the file name is updated by hand.",
+            "version": "5.0.4",
+            "build": "1812",
+            "url": "https://github.com/FirebirdSQL/firebird/releases/download/v{version}/Firebird-{version}.{build}-0-linux-x64.tar.gz",
+            "buildsystem": "simple",
+            "build-commands": [
+                "tar -xzf buildroot.tar.gz ./opt/firebird/include ./opt/firebird/lib ./opt/firebird/firebird.msg ./opt/firebird/firebird.conf ./opt/firebird/IDPLicense.txt ./opt/firebird/IPLicense.txt",
+                "install -Dm644 -t ${FLATPAK_DEST}/share/licenses/firebird opt/firebird/IDPLicense.txt opt/firebird/IPLicense.txt",
+                "install -d ${FLATPAK_DEST}/lib ${FLATPAK_DEST}/include ${FLATPAK_DEST}/lib/firebird",
+                "cp -a opt/firebird/lib/libfbclient.so* ${FLATPAK_DEST}/lib/",
+                "cp -a opt/firebird/include/. ${FLATPAK_DEST}/include/",
+                "install -m644 opt/firebird/firebird.msg opt/firebird/firebird.conf ${FLATPAK_DEST}/lib/firebird/"
+            ]
+        },
+        "freetds": {
+            "version": "1.5.19",
+            "url": "https://www.freetds.org/files/stable/freetds-{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--disable-odbc",
+                "--disable-apps",
+                "--disable-server",
+                "--disable-pool",
+                "--with-openssl",
+                "--with-tdsver=auto"
+            ],
+            "renovate": {
+                "datasource": "github-tags",
+                "package": "FreeTDS/freetds",
+                "extractVersion": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+            }
+        },
+        "imagemagick": {
+            "version": "7.1.2-32",
+            "url": "https://github.com/ImageMagick/ImageMagick/archive/refs/tags/{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--enable-shared",
+                "--without-modules",
+                "--disable-docs",
+                "--without-perl",
+                "--without-x",
+                "--without-magick-plus-plus",
+                "--with-fftw",
+                "--with-heic",
+                "--with-jxl",
+                "--with-rsvg",
+                "--with-webp",
+                "--with-openjp2",
+                "--with-lcms",
+                "--with-fontconfig",
+                "--with-freetype"
+            ],
+            "keep-bin": true,
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "ImageMagick/ImageMagick",
+                "versioning": "loose"
+            }
+        },
+        "libpq": {
+            "version": "18.6",
+            "url": "https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.bz2",
+            "buildsystem": "simple",
+            "build-commands": [
+                "./configure --prefix=${FLATPAK_DEST} --with-openssl --without-readline --without-icu --without-perl --without-python --without-tcl",
+                "make -C src/interfaces/libpq -j${FLATPAK_BUILDER_N_JOBS} install",
+                "make -C src/include install",
+                "make -C src/bin/pg_config install"
+            ],
+            "renovate": {
+                "datasource": "docker",
+                "package": "docker.io/library/postgres",
+                "versioning": "docker"
+            }
+        },
+        "libtommath": {
+            "version": "1.3.0",
+            "url": "https://github.com/libtom/libtommath/releases/download/v{version}/ltm-{version}.tar.xz",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DBUILD_SHARED_LIBS=ON",
+                "-DBUILD_TESTING=OFF"
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "libtom/libtommath",
+                "extractVersion": "^v(?<version>.+)$"
+            }
+        },
+        "libvips": {
+            "version": "8.18.7",
+            "url": "https://github.com/libvips/libvips/releases/download/v{version}/vips-{version}.tar.xz",
+            "buildsystem": "meson",
+            "config-opts": [
+                "-Dmodules=disabled",
+                "-Dintrospection=disabled",
+                "-Dexamples=false",
+                "-Dmagick=disabled",
+                "-Dpoppler=disabled",
+                "-Dpdfium=disabled"
+            ],
+            "keep-bin": true,
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "libvips/libvips",
+                "extractVersion": "^v(?<version>.+)$"
+            }
+        },
+        "libzip": {
+            "version": "1.11.4",
+            "url": "https://github.com/nih-at/libzip/releases/download/v{version}/libzip-{version}.tar.xz",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DBUILD_TOOLS=OFF",
+                "-DBUILD_REGRESS=OFF",
+                "-DBUILD_OSSFUZZ=OFF",
+                "-DBUILD_EXAMPLES=OFF",
+                "-DBUILD_DOC=OFF"
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "nih-at/libzip",
+                "extractVersion": "^v(?<version>.+)$"
+            }
+        },
+        "lmdb": {
+            "version": "0.9.36",
+            "url": "https://github.com/LMDB/lmdb/archive/refs/tags/LMDB_{version}.tar.gz",
+            "buildsystem": "simple",
+            "subdir": "libraries/liblmdb",
+            "build-commands": [
+                "make -j${FLATPAK_BUILDER_N_JOBS} liblmdb.so",
+                "install -Dm644 lmdb.h ${FLATPAK_DEST}/include/lmdb.h",
+                "install -Dm755 liblmdb.so ${FLATPAK_DEST}/lib/liblmdb.so"
+            ],
+            "renovate": {
+                "datasource": "github-tags",
+                "package": "LMDB/lmdb",
+                "extractVersion": "^LMDB_(?<version>0\\.9\\.\\d+)$"
+            }
+        },
+        "net-snmp": {
+            "version": "5.9.5.2",
+            "url": "https://github.com/net-snmp/net-snmp/archive/refs/tags/v{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--with-defaults",
+                "--disable-static",
+                "--disable-agent",
+                "--disable-applications",
+                "--disable-manuals",
+                "--disable-scripts",
+                "--disable-embedded-perl",
+                "--without-perl-modules",
+                "--with-openssl"
+            ],
+            "renovate": {
+                "datasource": "github-tags",
+                "package": "net-snmp/net-snmp",
+                "extractVersion": "^v(?<version>\\d+\\.\\d+\\.\\d+(\\.\\d+)?)$",
+                "versioning": "loose"
+            },
+            "patches": [
+                "net-snmp-session-reuse.patch"
+            ]
+        },
+        "openldap": {
+            "version": "2.6.15",
+            "url": "https://www.openldap.org/software/download/OpenLDAP/openldap-release/openldap-{version}.tgz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--disable-slapd",
+                "--with-tls=openssl",
+                "--with-cyrus-sasl"
+            ],
+            "renovate": {
+                "datasource": "repology",
+                "package": "homebrew/openldap",
+                "versioning": "semver"
+            }
+        },
+        "tidy": {
+            "version": "5.8.0",
+            "url": "https://github.com/htacg/tidy-html5/archive/refs/tags/{version}.tar.gz",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+                "-DBUILD_SHARED_LIB=ON",
+                "-DTIDY_CONSOLE_SHARED=OFF"
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "htacg/tidy-html5"
+            }
+        },
+        "unixodbc": {
+            "version": "2.3.14",
+            "url": "https://www.unixodbc.org/unixODBC-{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--enable-gui=no"
+            ],
+            "renovate": {
+                "datasource": "github-tags",
+                "package": "lurcher/unixODBC",
+                "extractVersion": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+            }
+        }
+    },
+    "services": {
+        "postgres": {
+            "comment": "CI builds run as root, which postgres, initdb and pg_ctl refuse.",
+            "from": "libpq",
+            "build": [
+                "sed -i 's/geteuid() == 0/0/' src/backend/main/main.c src/bin/initdb/initdb.c src/bin/pg_ctl/pg_ctl.c",
+                "./configure --prefix={service}/install --without-readline --without-icu --without-perl --without-python --without-tcl",
+                "make -j${FLATPAK_BUILDER_N_JOBS}",
+                "make install"
+            ],
+            "start": [
+                "export PGDATA=$(mktemp -d)",
+                "{service}/install/bin/initdb -D \"$PGDATA\" -U postgres -A trust >/dev/null",
+                "{service}/install/bin/pg_ctl -D \"$PGDATA\" -o \"-h 127.0.0.1 -p 15432 -k $PGDATA\" -l \"$PGDATA/log\" -w start >/dev/null",
+                "{service}/install/bin/createdb -h 127.0.0.1 -p 15432 -U postgres test"
+            ],
+            "stop": [
+                "{service}/install/bin/pg_ctl -D \"$PGDATA\" -m immediate stop >/dev/null"
+            ]
+        },
+        "mysql": {
+            "comment": "Official minimal build; libaio and libnuma are missing from the SDK. --user=root: CI builds run as root.",
+            "sources": [
+                {
+                    "version": "8.4.11",
+                    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-{version}-linux-glibc2.28-x86_64-minimal.tar.xz",
+                    "renovate": {
+                        "datasource": "docker",
+                        "package": "docker.io/library/mysql",
+                        "versioning": "docker"
+                    }
+                },
+                {
+                    "version": "0.3.113",
+                    "url": "https://releases.pagure.org/libaio/libaio-{version}.tar.gz",
+                    "dest": "libaio"
+                },
+                {
+                    "version": "2.0.19",
+                    "url": "https://github.com/numactl/numactl/releases/download/v{version}/numactl-{version}.tar.gz",
+                    "dest": "numactl",
+                    "renovate": {
+                        "datasource": "github-releases",
+                        "package": "numactl/numactl",
+                        "extractVersion": "^v(?<version>.+)$"
+                    }
+                }
+            ],
+            "build": [
+                "make -C libaio prefix={service}/deps install",
+                "(cd numactl && ./configure --prefix={service}/deps && make -j${FLATPAK_BUILDER_N_JOBS} libnuma.la && make install-libLTLIBRARIES)"
+            ],
+            "start": [
+                "export MYSQL_DIR=$(mktemp -d)",
+                "LD_LIBRARY_PATH={service}/deps/lib {service}/bin/mysqld --no-defaults --user=root --initialize-insecure --basedir={service} --datadir=$MYSQL_DIR/data --log-error=$MYSQL_DIR/init.log",
+                "LD_LIBRARY_PATH={service}/deps/lib {service}/bin/mysqld --no-defaults --user=root --daemonize --basedir={service} --datadir=$MYSQL_DIR/data --socket=$MYSQL_DIR/sock --port=13306 --bind-address=127.0.0.1 --mysqlx=OFF --pid-file=$MYSQL_DIR/pid --log-error=$MYSQL_DIR/err.log",
+                "LD_LIBRARY_PATH={service}/deps/lib {service}/bin/mysql --no-defaults -uroot -S $MYSQL_DIR/sock -e \"CREATE USER 'root'@'127.0.0.1'; GRANT ALL ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION; CREATE DATABASE test;\""
+            ],
+            "stop": [
+                "LD_LIBRARY_PATH={service}/deps/lib {service}/bin/mysqladmin --no-defaults -uroot -S \"$MYSQL_DIR/sock\" shutdown"
+            ]
+        },
+        "ldap": {
+            "from": "openldap",
+            "files": [
+                "services/ldap/slapd.conf"
+            ],
+            "build": [
+                "./configure --prefix={service}/install --disable-static --enable-slapd --enable-backends=no --enable-mdb --enable-overlays --with-tls=openssl --with-cyrus-sasl --without-systemd",
+                "make depend",
+                "make -j${FLATPAK_BUILDER_N_JOBS}",
+                "make install"
+            ],
+            "start": [
+                "export LDAP_DIR=$(mktemp -d)",
+                "mkdir $LDAP_DIR/db",
+                "openssl req -newkey rsa:2048 -x509 -nodes -days 1 -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout $LDAP_DIR/server.key -out $LDAP_DIR/server.crt 2>/dev/null",
+                "sed -e \"s|@DIR@|$LDAP_DIR|g\" -e \"s|@SCHEMA@|{service}/install/etc/openldap/schema|g\" {service}/slapd.conf > $LDAP_DIR/slapd.conf",
+                "LD_LIBRARY_PATH={service}/install/lib {service}/install/libexec/slapd -f $LDAP_DIR/slapd.conf -h \"ldap://127.0.0.1:3890/ ldaps://127.0.0.1:6360/\"",
+                "for i in $(seq 50); do LD_LIBRARY_PATH={service}/install/lib {service}/install/bin/ldapsearch -x -H ldap://127.0.0.1:3890 -s base -b '' >/dev/null 2>&1 && break; sleep 0.2; done",
+                "printf 'dn: dc=my-domain,dc=com\\nobjectClass: top\\nobjectClass: organization\\nobjectClass: dcObject\\ndc: my-domain\\no: php ldap tests\\n' | LD_LIBRARY_PATH={service}/install/lib {service}/install/bin/ldapadd -x -H ldap://127.0.0.1:3890 -D cn=Manager,dc=my-domain,dc=com -w secret >/dev/null"
+            ],
+            "stop": [
+                "kill $(cat $LDAP_DIR/slapd.pid)"
+            ]
+        },
+        "snmp": {
+            "from": "net-snmp",
+            "build": [
+                "./configure --prefix={service}/install --with-defaults --disable-static --disable-applications --disable-manuals --disable-scripts --disable-embedded-perl --without-perl-modules --with-persistent-directory=/nonexistent",
+                "make -j${FLATPAK_BUILDER_N_JOBS}",
+                "make install"
+            ],
+            "start": [
+                "export SNMP_DIR=$(mktemp -d)",
+                "sed -e 's|^agentaddress.*|agentaddress udp:127.0.0.1:1161,udp6:[::1]:1161|' -e \"s|/etc/snmp/bigtest|$PWD/tests/bigtest|\" tests/snmpd.conf > $SNMP_DIR/snmpd.conf",
+                "SNMP_PERSISTENT_DIR=$SNMP_DIR/persist LD_LIBRARY_PATH={service}/install/lib {service}/install/sbin/snmpd -C -c $SNMP_DIR/snmpd.conf -p $SNMP_DIR/snmpd.pid -Lf $SNMP_DIR/snmpd.log",
+                "for i in $(seq 50); do [ -s $SNMP_DIR/snmpd.pid ] && break; sleep 0.2; done"
+            ],
+            "stop": [
+                "kill $(cat $SNMP_DIR/snmpd.pid)"
+            ]
+        },
+        "firebird": {
+            "from": "firebird",
+            "build": [
+                "mkdir -p root && tar -xzf buildroot.tar.gz -C root ./opt/firebird"
+            ],
+            "start": [
+                "export FIREBIRD=$(mktemp -d)",
+                "export FIREBIRD_LOCK=$FIREBIRD/lock FIREBIRD_TMP=$FIREBIRD/tmp",
+                "mkdir $FIREBIRD_LOCK $FIREBIRD_TMP",
+                "for x in bin lib plugins intl tzdata firebird.msg plugins.conf; do ln -s {service}/root/opt/firebird/$x $FIREBIRD/$x; done",
+                "cp {service}/root/opt/firebird/firebird.conf {service}/root/opt/firebird/databases.conf {service}/root/opt/firebird/security5.fdb $FIREBIRD/",
+                "printf 'RemoteServicePort = 13050\\nRemoteBindAddress = 127.0.0.1\\n' >> $FIREBIRD/firebird.conf",
+                "echo \"create or alter user SYSDBA password 'masterkey' using plugin Srp; create or alter user test password 'test' using plugin Srp; grant create database to user test; commit;\" | LD_LIBRARY_PATH={service}/root/opt/firebird/lib:$FLATPAK_DEST/lib {service}/root/opt/firebird/bin/isql -user SYSDBA -q $FIREBIRD/security5.fdb",
+                "(LD_LIBRARY_PATH={service}/root/opt/firebird/lib:$FLATPAK_DEST/lib exec {service}/root/opt/firebird/bin/firebird > $FIREBIRD/server.log 2>&1) & echo $! > $FIREBIRD/server.pid",
+                "for i in $(seq 50); do (echo > /dev/tcp/127.0.0.1/13050) 2>/dev/null && break; sleep 0.2; done",
+                "echo \"create database '127.0.0.1/13050:$FIREBIRD/test.fdb' user 'test' password 'test';\" | LD_LIBRARY_PATH={service}/root/opt/firebird/lib:$FLATPAK_DEST/lib {service}/root/opt/firebird/bin/isql -q",
+                "export PDO_FIREBIRD_TEST_DSN=firebird:dbname=127.0.0.1/13050:$FIREBIRD/test.fdb PDO_FIREBIRD_TEST_DATABASE=$FIREBIRD/test.fdb PDO_FIREBIRD_TEST_USER=test PDO_FIREBIRD_TEST_PASS=test"
+            ],
+            "stop": [
+                "kill $(cat $FIREBIRD/server.pid)"
+            ]
+        }
+    }
+}

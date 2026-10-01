@@ -1,0 +1,6 @@
+/.cache/
+/.flatpak-builder/
+/build/
+/repo/
+/*.log
+/bundles/

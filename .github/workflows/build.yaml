@@ -1,0 +1,274 @@
+name: Build
+
+# Packages whose image for the fingerprint already exists are not built again.
+# On main every package is also published as a flatpak repository on Pages.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Package ids to build, space-separated; empty for all'
+        required: false
+        default: ""
+        type: string
+      tests:
+        description: 'Run the test suites'
+        required: false
+        default: true
+        type: boolean
+      force:
+        description: 'Build even if the image for the fingerprint exists'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      php: ${{ steps.plan.outputs.php }}
+      composer: ${{ steps.plan.outputs.composer }}
+      extension: ${{ steps.plan.outputs.extension }}
+      tags: ${{ steps.plan.outputs.tags }}
+      images: ${{ steps.plan.outputs.images }}
+      platform: ${{ steps.plan.outputs.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Source checksums
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/sources.json
+          key: sources-${{ hashFiles('packages.json') }}
+          restore-keys: sources-
+      - name: Plan
+        id: plan
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PACKAGES: ${{ inputs.packages }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          ./generate.py --plan > plan.json
+
+          token=$(curl -sf -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${GITHUB_REPOSITORY}:pull" | jq -r .token)
+          # packages whose image for the fingerprint is missing
+          missing=$(jq -r '.[] | "\(.id) \(.name) \(.fingerprint)"' plan.json |
+            while read -r id name fingerprint; do
+              curl -sfI -o /dev/null -H "Authorization: Bearer $token" \
+                -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
+                "https://ghcr.io/v2/${GITHUB_REPOSITORY}/${name}/manifests/build-${fingerprint}" || echo "$id"
+            done | jq -Rsc 'split("\n") - [""]')
+
+          # the selected packages that are missing (or all with force), and
+          # whatever they build against that is missing
+          jq -r --argjson missing "$missing" --arg packages "$PACKAGES" --arg force "$FORCE" \
+            --arg prefix "ghcr.io/${GITHUB_REPOSITORY}" '
+            def image: "\($prefix)/\(.name)";
+            def tag: "build-\(.fingerprint)";
+            INDEX(.id) as $by_id
+            | ($packages | split(" ") - [""]) as $wanted
+            | (if $wanted == [] then map(.id) else $wanted end) as $selected
+            | ($selected - map(.id)) as $unknown
+            | if $unknown != [] then error("no such package: \($unknown | join(" "))") else . end
+            | [$selected[] | select($force == "true" or IN($missing[]))] as $build
+            | ($build + [$build[] | $by_id[.].needs[] | select(IN($missing[]))]) as $build
+            | (["php", "composer", "extension"][] as $kind
+                | map(select(.kind == $kind and IN(.id; $build[]))
+                      | {id, name, image: image, tag: tag, version, ref, arch, platform,
+                         needs: ([.needs[] | $by_id[.] | "\(image):\(tag)"] | tojson)})
+                | "\($kind)=\(tojson)"),
+              "tags=\(map(select(IN(.id; $selected[])) | {image: image, from: tag, tags}) | tojson)",
+              "images=\(map("\(image):\(tag)") | tojson)",
+              "platform=\(.[0].platform)"
+            ' plan.json >> "$GITHUB_OUTPUT"
+
+  php:
+    name: ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.php != '[]'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.php) }}
+    uses: ./.github/workflows/package.yaml
+    with: &package
+      id: ${{ matrix.id }}
+      name: ${{ matrix.name }}
+      image: ${{ matrix.image }}
+      tag: ${{ matrix.tag }}
+      version: ${{ matrix.version }}
+      ref: ${{ matrix.ref }}
+      arch: ${{ matrix.arch }}
+      platform: ${{ matrix.platform }}
+      needs: ${{ matrix.needs }}
+      tests: ${{ github.event_name != 'workflow_dispatch' || inputs.tests }}
+
+  composer:
+    name: ${{ matrix.name }}
+    needs: [plan, php]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.php.result != 'failure' && needs.plan.outputs.composer != '[]'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.composer) }}
+    uses: ./.github/workflows/package.yaml
+    with: *package
+
+  extension:
+    name: ${{ matrix.name }}
+    needs: [plan, php]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.php.result != 'failure' && needs.plan.outputs.extension != '[]'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ vars.MAX_PARALLEL && fromJSON(vars.MAX_PARALLEL) || 4 }}
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.extension) }}
+    uses: ./.github/workflows/package.yaml
+    with: *package
+
+  # readable tags on main, also for packages that were not rebuilt
+  tag:
+    needs: [plan, php, composer, extension]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' &&
+      needs.plan.result == 'success' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Tag
+        env:
+          TAGS: ${{ needs.plan.outputs.tags }}
+        run: |
+          set -euo pipefail
+          jq -r '.[] | .image as $i | .from as $f | .tags[] | "\($i):\($f) \($i):\(.)"' <<< "$TAGS" |
+            while read -r from to; do
+              docker buildx imagetools create "$from" --tag "$to"
+            done
+
+  # every package's bundle into a signed repository, rebuilt on each run
+  pages:
+    needs: [plan, php, composer, extension]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' &&
+      needs.plan.result == 'success' && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup GPG
+        env:
+          GPG_KEY_GREP: ${{ vars.GPG_KEY_GREP }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+        run: |
+          set -eo pipefail
+          gpg --list-keys --with-keygrip
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+          echo "$GPG_PASSPHRASE" | /usr/libexec/gpg-preset-passphrase --preset "$GPG_KEY_GREP"
+          echo "$GPG_PRIVATE_KEY" > repo.private.gpg
+          gpg --import --batch repo.private.gpg
+          rm repo.private.gpg
+          gpg --export "$GPG_KEY_ID" > repo.gpg
+      - name: Pull every package
+        uses: ./.github/actions/pull-bundles
+        with:
+          images: ${{ needs.plan.outputs.images }}
+          platform: ${{ needs.plan.outputs.platform }}
+          path: bundles
+      - name: Build the repository
+        env:
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+        run: |
+          set -eo pipefail
+          ostree --repo=repo init --mode=archive
+          for bundle in bundles/*.flatpak; do
+            flatpak build-import-bundle --no-update-summary --gpg-sign="$GPG_KEY_ID" repo "$bundle"
+          done
+          flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --generate-static-deltas --prune repo
+      - name: Initialize github-pages
+        run: |
+          set -eo pipefail
+          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          branch="$(jq -r .sdk.branch packages.json)"
+          gpg_base64="$(base64 -w 0 repo.gpg)"
+          cat > repo/kattokeskus-php.flatpakrepo <<EOF
+          [Flatpak Repo]
+          Title=Kattokeskus PHP
+          Url=$url
+          Homepage=https://github.com/${{ github.repository }}
+          GPGKey=$gpg_base64
+          EOF
+          cat > repo/index.html <<EOF
+          <!DOCTYPE html>
+          <html>
+            <head><title>Kattokeskus PHP Flatpak Repository</title></head>
+            <body>
+              <h1>Kattokeskus PHP</h1>
+              <p>PHP, Composer and PHP extensions as org.freedesktop.Sdk extensions.</p>
+              <pre>flatpak remote-add --if-not-exists kattokeskus-php $url/kattokeskus-php.flatpakrepo
+          flatpak install kattokeskus-php org.freedesktop.Sdk.Extension.kattokeskus-php84//$branch</pre>
+            </body>
+          </html>
+          EOF
+      - name: Save pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: repo/
+
+  deploy:
+    needs: pages
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy github pages
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

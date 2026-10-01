@@ -1,0 +1,73 @@
+net-snmp 5.9.5: fix reusing a session (upstream 6a16c2d, not in a release yet)
+
+Since 5.9.5 snmp_sess_open() writes the ephemeral local port into the
+caller's session template, so the next open of the same template tries to
+bind that port and fails with EADDRINUSE. PHP's SNMP class opens a session
+per request from the same template, so every request after the first fails
+with "Could not open snmp connection: Unknown host". The PHP snmp test suite
+catches it (snmp-object.phpt).
+https://github.com/net-snmp/net-snmp/issues/1055, php/php-src#21132.
+
+From 6a16c2df17e9479de822b42a30dca345c9e746f5 Mon Sep 17 00:00:00 2001
+From: Bart Van Assche <bvanassche@acm.org>
+Date: Mon, 2 Mar 2026 16:48:47 -0600
+Subject: [PATCH] libsnmp: Call .f_setup_session() later
+
+.f_setup_session() may set session->local_port. Calling .f_setup_session()
+on the original session breaks session reuse. Hence call .f_setup_session()
+after session copying completed and call it on the session copy.
+
+Fixes: https://github.com/net-snmp/net-snmp/issues/1055
+Fixes: ed917bfdb0e0 ("libsnmp: Copy the listening port number into snmp_session.local_port")
+---
+ snmplib/snmp_api.c | 23 ++++++++++-------------
+ 1 file changed, 10 insertions(+), 13 deletions(-)
+
+diff --git a/snmplib/snmp_api.c b/snmplib/snmp_api.c
+index ad30397bc2..a185da6d32 100644
+--- a/snmplib/snmp_api.c
++++ b/snmplib/snmp_api.c
+@@ -1863,18 +1863,8 @@ snmp_sess_add_ex(netsnmp_session * in_session,
+         return NULL;
+     }
+ 
+-    if (transport->f_setup_session) {
+-        if (SNMPERR_SUCCESS !=
+-            transport->f_setup_session(transport, in_session)) {
+-            netsnmp_transport_free(transport);
+-            return NULL;
+-        }
+-    }
+-        
+-            
+     DEBUGMSGTL(("snmp_sess_add", "fd %d\n", transport->sock));
+ 
+-
+     if ((slp = snmp_sess_copy(in_session)) == NULL) {
+         transport->f_close(transport);
+         netsnmp_transport_free(transport);
+@@ -1909,14 +1899,21 @@ snmp_sess_add_ex(netsnmp_session * in_session,
+                     "adding v3 session -- maybe engineID probe now\n"));
+         if (!snmpv3_engineID_probe(slp, slp->session)) {
+             DEBUGMSGTL(("snmp_sess_add", "engine ID probe failed\n"));
+-            snmp_sess_close(slp);
+-            return NULL;
++            goto close_session;
+         }
+     }
+ 
+     slp->session->flags &= ~SNMP_FLAGS_DONT_PROBE;
+ 
+-    return (void *) slp;
++    if (transport->f_setup_session &&
++        transport->f_setup_session(transport, slp->session) != SNMPERR_SUCCESS)
++        goto close_session;
++
++    return slp;
++
++close_session:
++    snmp_sess_close(slp);
++    return NULL;
+ }                               /*  end snmp_sess_add_ex()  */
+ 
+ 
