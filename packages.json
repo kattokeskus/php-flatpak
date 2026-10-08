@@ -600,7 +600,7 @@
             ]
         },
         "openldap": {
-            "version": "2.6.15",
+            "version": "2.7.1",
             "url": "https://www.openldap.org/software/download/OpenLDAP/openldap-release/openldap-{version}.tgz",
             "buildsystem": "autotools",
             "config-opts": [
