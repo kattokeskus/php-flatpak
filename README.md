@@ -93,7 +93,8 @@ Get a bundle:
 [packages.json](packages.json) holds versions and build options;
 [generate.py](generate.py) writes the manifests to `build/` with source URLs
 and checksums, so a version bump (also by Renovate) is one line. With
-`--tests` the manifests run the test suites (`build.sh` passes it).
+`--tests` the manifests run the test suites (`build.sh` passes it); `--index`
+writes the Pages index.
 
 ### packages.json
 

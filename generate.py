@@ -5,6 +5,7 @@
     ./generate.py org.freedesktop.Sdk.Extension.kattokeskus-php84-mysqli  # just these
     ./generate.py --tests                                                 # with run-tests
     ./generate.py --plan                                                  # fingerprints, tags (JSON)
+    ./generate.py --index <url> <homepage>                                # the Pages index (HTML)
 
 Manifests go to build/, PHP packages first: the others build against them.
 Without --tests the test commands are there but off, as flatpak-builder has
@@ -14,6 +15,7 @@ download cache; the checksum is kept in .cache/sources.json.
 """
 
 import hashlib
+import html
 import json
 import os
 import sys
@@ -495,37 +497,38 @@ def fingerprint(manifest, needs, arches):
     return digest.hexdigest()[:12]
 
 
+def describe(config, make, args):
+    """A package's kind, what it builds against, its version and its tags."""
+    if make is php_manifest:
+        minor, = args
+        version = config["php"]["versions"][minor]["version"]
+        return "php", [], version, [version]
+    if make is composer_manifest:
+        version = config["composer"]["version"]
+        return ("composer", [ID_PREFIX + php_name(config, m) for m in config["php"]["versions"]],
+                version, [version])
+    minor, ext = args
+    spec = config["extensions"][ext]
+    needs = [ID_PREFIX + php_name(config, minor)]
+    php_version = config["php"]["versions"][minor]["version"]
+    if spec["source"] == "bundled":
+        return "extension", needs, php_version, [php_version]
+    version = spec.get("version") or config["deps"][spec["deps"][0]]["version"]
+    return "extension", needs, version, [f"{version}-php{php_version}"]
+
+
 def plan(config, cache):
     """Every package with what it needs, its fingerprint and its tags."""
     arches = config["arches"]
     result, fingerprints = [], {}
     for manifest_id, make, args in packages(config):
-        if make is php_manifest:
-            minor, = args
-            needs = []
-            version = config["php"]["versions"][minor]["version"]
-            tags = [version]
-        elif make is composer_manifest:
-            needs = [ID_PREFIX + php_name(config, m) for m in config["php"]["versions"]]
-            version = config["composer"]["version"]
-            tags = [version]
-        else:
-            minor, ext = args
-            spec = config["extensions"][ext]
-            needs = [ID_PREFIX + php_name(config, minor)]
-            php_version = config["php"]["versions"][minor]["version"]
-            if spec["source"] == "bundled":
-                version = php_version
-                tags = [version]
-            else:
-                version = spec.get("version") or config["deps"][spec["deps"][0]]["version"]
-                tags = [f"{version}-php{php_version}"]
+        kind, needs, version, tags = describe(config, make, args)
         fingerprints[manifest_id] = fingerprint(make(config, *args, cache),
                                                 [fingerprints[n] for n in needs], arches)
         result.append({
             "id": manifest_id,
             "name": manifest_id[len(ID_PREFIX):],
-            "kind": {php_manifest: "php", composer_manifest: "composer"}.get(make, "extension"),
+            "kind": kind,
             "needs": needs,
             "fingerprint": fingerprints[manifest_id],
             "arches": arches,
@@ -536,8 +539,78 @@ def plan(config, cache):
     return result
 
 
+INDEX_STYLE = """
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
+body { max-width: 56rem; margin: 2rem auto; padding: 0 1rem; }
+pre { padding: .6rem .8rem; overflow-x: auto; background: rgb(127 127 127 / .12); border-radius: 6px; }
+summary { cursor: pointer; font-weight: 600; }
+table { border-collapse: collapse; margin: .5rem 0 1rem; }
+th, td { padding: .15rem 1.2rem .15rem 0; text-align: left; vertical-align: top; }
+td code { font-size: .9em; }
+"""
+
+
+def index(config, url, homepage):
+    """The Pages index: how to add the repository, each PHP version with its
+    extensions, and Composer."""
+    esc = html.escape
+    title = f"{config['name'].capitalize()} PHP"
+    remote = f"{config['name']}-php"
+    branch = config["sdk"]["branch"]
+    php, extensions, composer = {}, {}, None
+    for manifest_id, make, args in packages(config):
+        kind, _, version, _ = describe(config, make, args)
+        if kind == "php":
+            php[args[0]] = (manifest_id, version)
+        elif kind == "composer":
+            composer = (manifest_id, version)
+        else:
+            extensions.setdefault(args[0], []).append((args[1], version, manifest_id))
+
+    def install(manifest_id):
+        return f"<pre>flatpak install {esc(remote)} {esc(manifest_id)}//{esc(branch)}</pre>"
+
+    out = [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>{esc(title)} Flatpak Repository</title>",
+        f"<style>{INDEX_STYLE}</style>",
+        "</head>",
+        "<body>",
+        f"<h1>{esc(title)}</h1>",
+        f"<p>PHP, Composer and PHP extensions as <code>{esc(config['sdk']['id'])}//{esc(branch)}</code>"
+        f" extensions, for {esc(' and '.join(config['arches']))}."
+        f' Usage and sources: <a href="{esc(homepage)}">{esc(homepage)}</a>.</p>',
+        "<pre>flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo",
+        f"flatpak remote-add --if-not-exists {esc(remote)} {esc(url)}/{esc(remote)}.flatpakrepo</pre>",
+    ]
+    for minor, (manifest_id, version) in php.items():
+        exts = sorted(extensions.get(minor, []))
+        out += [f"<h2>PHP {esc(version)}</h2>", install(manifest_id),
+                f"<details><summary>Extensions ({len(exts)})</summary>",
+                "<table><tr><th>Extension</th><th>Version</th><th>Package</th></tr>"]
+        out += [f"<tr><td>{esc(ext)}</td><td>{esc(v)}</td><td><code>{esc(i)}</code></td></tr>"
+                for ext, v, i in exts]
+        out += ["</table></details>"]
+    if composer:
+        manifest_id, version = composer
+        out += [f"<h2>Composer {esc(version)}</h2>", "<p>Runs on the enabled PHP.</p>",
+                install(manifest_id)]
+    return "\n".join(out + ["</body>", "</html>"]) + "\n"
+
+
 def main(argv):
     config = json.loads((ROOT / "packages.json").read_text())
+
+    if argv[:1] == ["--index"]:
+        if len(argv) != 3:
+            sys.exit(__doc__)
+        print(index(config, argv[1].rstrip("/"), argv[2]), end="")
+        return
+
     cache = load_cache()
 
     if argv == ["--plan"]:
