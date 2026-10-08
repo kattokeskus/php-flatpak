@@ -610,9 +610,10 @@
                 "--with-cyrus-sasl"
             ],
             "renovate": {
-                "datasource": "repology",
-                "package": "homebrew/openldap",
-                "versioning": "semver"
+                "datasource": "custom.openldap",
+                "package": "openldap",
+                "versioning": "semver",
+                "extractVersion": "^openldap-(?<version>\\d+\\.\\d+\\.\\d+)\\.tgz$"
             }
         },
         "tidy": {
