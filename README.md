@@ -29,7 +29,7 @@ extension package:
 
 ```
 FLATPAK_ENABLE_SDK_EXT=kattokeskus-php84,kattokeskus-composer
-KATTOKESKUS_PHP84_DISABLE="xdebug spx"     # optional: leave some out
+KATTOKESKUS_PHP84_DISABLE="xdebug,spx"     # optional: leave some out
 ```
 
 App manifest:
