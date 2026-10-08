@@ -108,6 +108,11 @@
             "format": "html",
             "defaultRegistryUrlTemplate": "https://pecl.php.net/package-changelog.php?package={{packageName}}"
         },
+        // the release directory's links; Repology gave no result to the hosted Renovate
+        "openldap": {
+            "format": "html",
+            "defaultRegistryUrlTemplate": "https://www.openldap.org/software/download/OpenLDAP/openldap-release/"
+        },
         // org.freedesktop.Sdk branches from keys "<id>/<arch>/<branch>"
         "flathub-runtime": {
             "format": "json",
