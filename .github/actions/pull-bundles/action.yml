@@ -4,9 +4,6 @@ inputs:
   images:
     description: 'image:tag references, as a JSON array'
     required: true
-  platform:
-    description: 'The image platform, for an image index'
-    required: true
   path:
     description: 'Where to put the bundles'
     required: true
@@ -16,7 +13,6 @@ runs:
     - shell: bash
       env:
         IMAGES: ${{ inputs.images }}
-        PLATFORM: ${{ inputs.platform }}
         DEST: ${{ inputs.path }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
@@ -33,9 +29,9 @@ runs:
           url="https://ghcr.io/v2/${ref#ghcr.io/}"
           url="${url%:*}"
           manifest=$(get "$url/manifests/${ref##*:}")
+          # every platform's image holds the same bundles
           if jq -e .manifests <<< "$manifest" > /dev/null; then
-            manifest=$(get "$url/manifests/$(jq -r --arg arch "${PLATFORM#linux/}" \
-              '.manifests[] | select(.platform.architecture == $arch) | .digest' <<< "$manifest")")
+            manifest=$(get "$url/manifests/$(jq -r 'first(.manifests[] | select(.platform.os == "linux")) | .digest' <<< "$manifest")")
           fi
           for layer in $(jq -r '.layers[].digest' <<< "$manifest"); do
             get "$url/blobs/$layer" | tar -xzf - -C "$DEST"

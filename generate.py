@@ -16,7 +16,6 @@ download cache; the checksum is kept in .cache/sources.json.
 import hashlib
 import json
 import os
-import platform
 import sys
 import tempfile
 import urllib.request
@@ -74,6 +73,19 @@ def sha256_of(url, cache):
 
 def source(kind, url, cache, **extra):
     return {"type": kind, "url": url, "sha256": sha256_of(url, cache), **extra}
+
+
+def arch_sources(config, kind, spec, cache, **extra):
+    """The source, or one per architecture when "arch" gives its {arch}."""
+    names = spec.get("arch")
+    if names is None:
+        return [source(kind, spec["url"].format(**spec), cache, **extra)]
+    missing = set(config["arches"]) - set(names)
+    if missing:
+        sys.exit(f"error: {spec['url']}: no arch for {' '.join(sorted(missing))}")
+    return [source(kind, spec["url"].format(**{**spec, "arch": names[arch]}), cache,
+                   **extra, **{"only-arches": [arch]})
+            for arch in sorted(config["arches"])]
 
 
 def php_name(config, minor):  # 8.4 -> kattokeskus-php84
@@ -242,7 +254,7 @@ def dep_module(config, dep, cache):
         "name": dep,
         "buildsystem": spec["buildsystem"],
         "sources": [
-            source("archive", spec["url"].format(**spec), cache),
+            *arch_sources(config, "archive", spec, cache),
             *({"type": "patch", "path": f"../patches/{patch}"} for patch in spec.get("patches", [])),
         ],
         "cleanup": DEP_CLEANUP + ([] if spec.get("keep-bin") else ["/bin", "/sbin"]),
@@ -271,9 +283,13 @@ def service_sources(config, name, cache):
     """A test service's sources and files, unpacked to _services/<name>."""
     spec = config["services"][name]
     srcs = [config["deps"][spec["from"]]] if "from" in spec else spec["sources"]
-    return [source("archive", src["url"].format(**src), cache,
-                   dest="/".join(filter(None, [f"_services/{name}", src.get("dest")])))
-            for src in srcs] + [
+    sources = []
+    for src in srcs:
+        extra = {"dest": "/".join(filter(None, [f"_services/{name}", src.get("dest")]))}
+        if "dest-filename" in src:
+            extra["dest-filename"] = src["dest-filename"]
+        sources += arch_sources(config, src.get("type", "archive"), src, cache, **extra)
+    return sources + [
         {"type": "file", "path": f"../{path}", "dest": f"_services/{name}"}
         for path in spec.get("files", [])
     ]
@@ -459,20 +475,16 @@ def packages(config):
     return result
 
 
-def arch():  # the builder's
-    return platform.machine()
+# flatpak's architecture names -> image platforms
+PLATFORMS = {"x86_64": "linux/amd64", "aarch64": "linux/arm64"}
 
 
-def oci_arch():  # as in an image platform
-    return {"x86_64": "amd64", "aarch64": "arm64"}.get(arch(), arch())
-
-
-def fingerprint(manifest, needs):
+def fingerprint(manifest, needs, arches):
     """Hash of everything a build depends on: the manifest (sources with their
-    checksums, commands), the local files it uses, the architecture and the
-    packages it builds against."""
+    checksums, commands), the local files it uses, the architectures it is
+    built for and the packages it builds against."""
     digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode())
-    digest.update(arch().encode())
+    digest.update(" ".join(sorted(arches)).encode())
     paths = sorted({src["path"] for module in manifest["modules"]
                     for src in module.get("sources", []) if "path" in src})
     for path in paths:
@@ -485,7 +497,7 @@ def fingerprint(manifest, needs):
 
 def plan(config, cache):
     """Every package with what it needs, its fingerprint and its tags."""
-    branch = config["sdk"]["branch"]
+    arches = config["arches"]
     result, fingerprints = [], {}
     for manifest_id, make, args in packages(config):
         if make is php_manifest:
@@ -509,16 +521,15 @@ def plan(config, cache):
                 version = spec.get("version") or config["deps"][spec["deps"][0]]["version"]
                 tags = [f"{version}-php{php_version}"]
         fingerprints[manifest_id] = fingerprint(make(config, *args, cache),
-                                                [fingerprints[n] for n in needs])
+                                                [fingerprints[n] for n in needs], arches)
         result.append({
             "id": manifest_id,
             "name": manifest_id[len(ID_PREFIX):],
             "kind": {php_manifest: "php", composer_manifest: "composer"}.get(make, "extension"),
             "needs": needs,
             "fingerprint": fingerprints[manifest_id],
-            "arch": arch(),
-            "platform": f"linux/{oci_arch()}",
-            "ref": f"runtime/{manifest_id}/{arch()}/{branch}",
+            "arches": arches,
+            "platforms": ",".join(PLATFORMS[arch] for arch in arches),
             "version": version,
             "tags": tags + ["latest"],
         })

@@ -63,25 +63,28 @@ BUNDLES=bundles ./build.sh                                  # and bundles/<id>-<
 Needs python3 and flatpak-builder (else it runs `org.flatpak.Builder`; from
 VS Code's terminal once: `flatpak override --user
 --talk-name=org.freedesktop.Flatpak com.visualstudio.code`). Extension
-packages build against the installed PHP package: use `INSTALL=1`. Packages
-are for the builder's architecture; only x86_64 has been built so far.
+packages build against the installed PHP package: use `INSTALL=1`. It builds
+for the host's architecture; CI builds each one in `arches`.
 
 ## CI
 
-Results are images `ghcr.io/kattokeskus/php-flatpak/<name>` holding the bundle,
-tagged `build-<fingerprint>`; a package whose tag exists is not built again.
-The fingerprint (`./generate.py --plan`) covers the manifest with its source
-checksums, local files, the architecture and the packages it builds
-against. On main they also get `8.4.26`, `6.3.0-php8.4.26` (PECL), `2.9.3`
-(Composer) and `latest`.
+Results are images `ghcr.io/kattokeskus/php-flatpak/<name>` holding the bundles
+of every architecture (the same for each platform), tagged
+`build-<fingerprint>`; a package whose tag exists is not built again. The
+fingerprint (`./generate.py --plan`) covers the manifest with its source
+checksums, local files, the architectures and the packages it builds against.
+On main they also get `8.4.26`, `6.3.0-php8.4.26` (PECL), `2.9.3` (Composer)
+and `latest`.
 
-[build.yaml](.github/workflows/build.yaml) runs on pushes to main and by hand,
-on `ubuntu-latest`: plan → php → composer and extensions
-([package.yaml](.github/workflows/package.yaml): the generated manifest built with
+[build.yaml](.github/workflows/build.yaml) runs on pull requests, pushes to main
+and by hand, on `ubuntu-26.04` (`ubuntu-26.04-arm` for aarch64): plan → php →
+composer and extensions ([package.yaml](.github/workflows/package.yaml): the
+generated manifest built with
 [flatpak-builder](https://github.com/marketplace/actions/flatpak-builder);
-`MAX_PARALLEL`, default 4) → tag and pages: every package as a flatpak
+`MAX_PARALLEL`, default 4) → on main, tag and pages: every package as a flatpak
 repository on GitHub Pages, signed with the key in secrets `GPG_PRIVATE_KEY`,
-`GPG_PASSPHRASE` and variables `GPG_KEY_ID`, `GPG_KEY_GREP` (its keygrip).
+`GPG_PASSPHRASE` and variables `GPG_KEY_ID`, `GPG_KEY_GREP` (its keygrip). A pull
+request builds and pushes the images; main, after the merge, finds them.
 Get a bundle:
 `echo 'FROM ghcr.io/kattokeskus/php-flatpak/<name>:<tag>' | docker buildx build -o <dir> -`.
 
@@ -97,11 +100,12 @@ and checksums, so a version bump (also by Renovate) is one line. With
 | Key | |
 | --- | --- |
 | `name` | id prefix: `kattokeskus` |
+| `arches` | the architectures CI builds |
 | `sdk`, `composer.version` | runtime and branch; Composer release |
 | `php.config-opts`, `.ini`, `.patches` | for all versions; `{prefix}`, `{minor}` expanded |
 | `php.versions.<minor>` | release, plus its own `config-opts`, `ini`, `patches` |
 | `extensions.<name>` | see below |
-| `deps.<name>` | a library built into the packages that list it: `version`, `url`, flatpak-builder module keys, `patches`, `keep-bin`, `renovate` |
+| `deps.<name>` | a library built into the packages that list it: `version`, `url`, `arch` (per architecture `{arch}` in the URL), flatpak-builder module keys, `patches`, `keep-bin`, `renovate` |
 | `services.<name>` | a test server, see Tests |
 
 An extension: `source` (`bundled`, `pecl` with `version`, `url` with `version`
@@ -118,8 +122,9 @@ failure fails the build. `tests` in packages.json: `skip`, `commands`, `env`,
 `services`, `network`, or `false`.
 
 Servers run inside the build sandbox, built and started in the test step and
-never installed. A service: `from` (a dep's source) or `sources`, `files`,
-`build`, `start` (may export the suite's settings), `stop`.
+never installed. A service: `from` (a dep's source) or `sources` (`version`,
+`url`, `arch`, `dest`, `type`, `dest-filename`), `files`, `build`, `start` (may
+export the suite's settings), `stop`.
 
 | Service | Suites |
 | --- | --- |
