@@ -11,8 +11,8 @@ for developing and packaging PHP applications with Flatpak.
 
 Extensions: apcu, bcmath, bz2, calendar, dba, enchant, exif, ffi, ftp, gd,
 gettext, gmp, imagick, intl, ldap, mysqli, pcntl, pdo_dblib, pdo_firebird,
-pdo_mysql, pdo_odbc, pdo_pgsql, pgsql, redis, shmop, snmp, soap, sockets, spx,
-sysvmsg, sysvsem, sysvshm, tidy, vips, xdebug, xhprof, xsl, zip. pdo,
+pdo_mysql, pdo_odbc, pdo_pgsql, pgsql, redis, shmop, snmp, soap, sockets, sodium,
+spx, sysvmsg, sysvsem, sysvshm, tidy, vips, xdebug, xhprof, xsl, zip. pdo,
 pdo_sqlite, opcache and the other common extensions are built into PHP. No
 imap: its c-client library is unmaintained.
 

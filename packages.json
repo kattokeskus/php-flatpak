@@ -305,6 +305,12 @@
         "sockets": {
             "source": "bundled"
         },
+        "sodium": {
+            "source": "bundled",
+            "deps": [
+                "libsodium"
+            ]
+        },
         "spx": {
             "source": "url",
             "version": "0.4.22",
@@ -487,6 +493,19 @@
                 "datasource": "docker",
                 "package": "docker.io/library/postgres",
                 "versioning": "docker"
+            }
+        },
+        "libsodium": {
+            "version": "1.0.22",
+            "url": "https://github.com/jedisct1/libsodium/releases/download/{version}-RELEASE/libsodium-{version}.tar.gz",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static"
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "jedisct1/libsodium",
+                "extractVersion": "^(?<version>.+)-RELEASE$"
             }
         },
         "libtommath": {
