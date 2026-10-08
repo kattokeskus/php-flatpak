@@ -542,7 +542,7 @@
             }
         },
         "libzip": {
-            "version": "1.11.4",
+            "version": "1.12",
             "url": "https://github.com/nih-at/libzip/releases/download/v{version}/libzip-{version}.tar.xz",
             "buildsystem": "cmake-ninja",
             "config-opts": [
