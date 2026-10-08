@@ -9,7 +9,8 @@
     },
     "enabledManagers": [
         "github-actions",
-        "custom.jsonata"
+        "custom.jsonata",
+        "custom.regex"
     ],
     "prHourlyLimit": 0,
     "labels": [
@@ -45,6 +46,23 @@
             "allowedVersions": "~8.4.0"
         },
         {
+            // one pull request for the branch in packages.json, the CI container and the README
+            "matchPackageNames": [
+                "org.freedesktop.Sdk"
+            ],
+            "groupName": "freedesktop SDK"
+        },
+        {
+            // a branch tag, followed as org.freedesktop.Sdk below
+            "matchManagers": [
+                "github-actions"
+            ],
+            "matchPackageNames": [
+                "ghcr.io/flathub-infra/flatpak-github-actions"
+            ],
+            "enabled": false
+        },
+        {
             "description": "pecl version extractor",
             "matchDatasources": [
                 "custom.pecl"
@@ -68,6 +86,21 @@
                 "services.*.sources[$exists(renovate)].{ \"depName\": renovate.package, \"datasource\": renovate.datasource, \"versioning\": renovate.versioning, \"extractVersion\": renovate.extractVersion, \"currentValue\": version }",
                 "$each(deps, function($v) { $exists($v.renovate) ? { \"depName\": $v.renovate.package, \"datasource\": $v.renovate.datasource, \"versioning\": $v.renovate.versioning, \"extractVersion\": $v.renovate.extractVersion, \"currentValue\": $v.version } })"
             ]
+        },
+        {
+            // the SDK branch elsewhere: the CI container's tag, the README's refs
+            "customType": "regex",
+            "managerFilePatterns": [
+                "/^\\.github/workflows/.+\\.yaml$/",
+                "/^README\\.md$/"
+            ],
+            "matchStrings": [
+                "flatpak-github-actions:freedesktop-(?<currentValue>\\d+\\.\\d+)",
+                "org\\.freedesktop\\.Sdk(\\.Extension\\.[\\w-]+)?//(?<currentValue>\\d+\\.\\d+)"
+            ],
+            "depNameTemplate": "org.freedesktop.Sdk",
+            "datasourceTemplate": "custom.flathub-runtime",
+            "versioningTemplate": "loose"
         }
     ],
     "customDatasources": {
