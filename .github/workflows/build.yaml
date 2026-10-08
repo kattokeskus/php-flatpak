@@ -1,8 +1,11 @@
 name: Build
 
-# Packages whose image for the fingerprint already exists are not built again.
-# On main every package is also published as a flatpak repository on Pages.
+# Packages whose image for the fingerprint already exists are not built again,
+# so a pull request builds the images and main, after the merge, only tags
+# them and publishes every package as a flatpak repository on Pages.
 on:
+  pull_request:
+    branches: [ main ]
   push:
     branches: [ main ]
   workflow_dispatch:
@@ -25,14 +28,14 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
       options: --privileged
@@ -45,7 +48,6 @@ jobs:
       extension: ${{ steps.plan.outputs.extension }}
       tags: ${{ steps.plan.outputs.tags }}
       images: ${{ steps.plan.outputs.images }}
-      platform: ${{ steps.plan.outputs.platform }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,12 +93,11 @@ jobs:
             | ($build + [$build[] | $by_id[.].needs[] | select(IN($missing[]))]) as $build
             | (["php", "composer", "extension"][] as $kind
                 | map(select(.kind == $kind and IN(.id; $build[]))
-                      | {id, name, image: image, tag: tag, version, ref, arch, platform,
-                         needs: ([.needs[] | $by_id[.] | "\(image):\(tag)"] | tojson)})
+                      | {id, name, image: image, tag: tag, version, arches: (.arches | tojson),
+                         platforms, needs: ([.needs[] | $by_id[.] | "\(image):\(tag)"] | tojson)})
                 | "\($kind)=\(tojson)"),
               "tags=\(map(select(IN(.id; $selected[])) | {image: image, from: tag, tags}) | tojson)",
-              "images=\(map("\(image):\(tag)") | tojson)",
-              "platform=\(.[0].platform)"
+              "images=\(map("\(image):\(tag)") | tojson)"
             ' plan.json >> "$GITHUB_OUTPUT"
 
   php:
@@ -117,9 +118,8 @@ jobs:
       image: ${{ matrix.image }}
       tag: ${{ matrix.tag }}
       version: ${{ matrix.version }}
-      ref: ${{ matrix.ref }}
-      arch: ${{ matrix.arch }}
-      platform: ${{ matrix.platform }}
+      arches: ${{ matrix.arches }}
+      platforms: ${{ matrix.platforms }}
       needs: ${{ matrix.needs }}
       tests: ${{ github.event_name != 'workflow_dispatch' || inputs.tests }}
 
@@ -162,7 +162,7 @@ jobs:
     if: >-
       !cancelled() && github.ref == 'refs/heads/main' &&
       needs.plan.result == 'success' && !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -191,7 +191,7 @@ jobs:
     if: >-
       !cancelled() && github.ref == 'refs/heads/main' &&
       needs.plan.result == 'success' && !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
       options: --privileged
@@ -221,7 +221,6 @@ jobs:
         uses: ./.github/actions/pull-bundles
         with:
           images: ${{ needs.plan.outputs.images }}
-          platform: ${{ needs.plan.outputs.platform }}
           path: bundles
       - name: Build the repository
         env:
@@ -265,7 +264,7 @@ jobs:
 
   deploy:
     needs: pages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       pages: write
       id-token: write

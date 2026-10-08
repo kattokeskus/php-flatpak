@@ -1,5 +1,9 @@
 {
     "name": "kattokeskus",
+    "arches": [
+        "x86_64",
+        "aarch64"
+    ],
     "sdk": {
         "id": "org.freedesktop.Sdk",
         "branch": "25.08"
@@ -406,7 +410,11 @@
             "comment": "Prebuilt client; the build number in the file name is updated by hand.",
             "version": "5.0.4",
             "build": "1812",
-            "url": "https://github.com/FirebirdSQL/firebird/releases/download/v{version}/Firebird-{version}.{build}-0-linux-x64.tar.gz",
+            "url": "https://github.com/FirebirdSQL/firebird/releases/download/v{version}/Firebird-{version}.{build}-0-linux-{arch}.tar.gz",
+            "arch": {
+                "x86_64": "x64",
+                "aarch64": "arm64"
+            },
             "buildsystem": "simple",
             "build-commands": [
                 "tar -xzf buildroot.tar.gz ./opt/firebird/include ./opt/firebird/lib ./opt/firebird/firebird.msg ./opt/firebird/firebird.conf ./opt/firebird/IDPLicense.txt ./opt/firebird/IPLicense.txt",
@@ -638,11 +646,17 @@
             ]
         },
         "mysql": {
-            "comment": "Official minimal build; libaio and libnuma are missing from the SDK. --user=root: CI builds run as root.",
+            "comment": "Official build, minimal where there is one; only the server and client are unpacked. libaio and libnuma are missing from the SDK. --user=root: CI builds run as root.",
             "sources": [
                 {
                     "version": "8.4.11",
-                    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-{version}-linux-glibc2.28-x86_64-minimal.tar.xz",
+                    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-{version}-linux-glibc2.28-{arch}.tar.xz",
+                    "arch": {
+                        "x86_64": "x86_64-minimal",
+                        "aarch64": "aarch64"
+                    },
+                    "type": "file",
+                    "dest-filename": "mysql.tar.xz",
                     "renovate": {
                         "datasource": "docker",
                         "package": "docker.io/library/mysql",
@@ -666,6 +680,7 @@
                 }
             ],
             "build": [
+                "tar -xJf mysql.tar.xz --no-same-owner --strip-components=1 --wildcards --exclude='*/debug/*' --exclude='*/mecab/*' --exclude='*.a' '*/bin/mysqld' '*/bin/mysql' '*/bin/mysqladmin' '*/lib/*' '*/share/*' && rm mysql.tar.xz",
                 "make -C libaio prefix={service}/deps install",
                 "(cd numactl && ./configure --prefix={service}/deps && make -j${FLATPAK_BUILDER_N_JOBS} libnuma.la && make install-libLTLIBRARIES)"
             ],
