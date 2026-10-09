@@ -1,9 +1,12 @@
 #!/bin/sh
 # Enables PHP and every installed /usr/lib/sdk/@NAME@-<ext> package, through
-# PHP_INI_SCAN_DIR. @VAR_UC@_DISABLE="xdebug spx" leaves some out.
+# PHP_INI_SCAN_DIR. @VAR_UC@_DISABLE="xdebug,spx" leaves some out.
 
 # prepended: wins over other enabled PHP SDK extensions
 export PATH=/usr/lib/sdk/@NAME@/bin:$PATH
+
+# comma- or space-separated (extension names have no spaces)
+@VAR@_disable=$(printf '%s' "${@VAR_UC@_DISABLE:-}" | tr ',' ' ')
 
 # sorted by ini file name, so the NN- prefix sets the load order across packages
 @VAR@_confd=$(
@@ -12,7 +15,7 @@ export PATH=/usr/lib/sdk/@NAME@/bin:$PATH
         @VAR@_name=${@VAR@_ini##*/}
         @VAR@_ext=${@VAR@_name#*-}
         @VAR@_ext=${@VAR@_ext%.ini}
-        case " ${@VAR_UC@_DISABLE:-} " in
+        case " $@VAR@_disable " in
             *" $@VAR@_ext "*) continue ;;
         esac
         printf '%s\t%s\n' "$@VAR@_name" "${@VAR@_ini%/*}"
@@ -29,4 +32,4 @@ for @VAR@_dir in /usr/lib/sdk/@NAME@-*; do
 done
 [ -z "${LD_LIBRARY_PATH:-}" ] || export LD_LIBRARY_PATH
 
-unset @VAR@_confd @VAR@_ini @VAR@_name @VAR@_ext @VAR@_dir
+unset @VAR@_disable @VAR@_confd @VAR@_ini @VAR@_name @VAR@_ext @VAR@_dir
