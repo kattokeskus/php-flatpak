@@ -413,7 +413,7 @@
             }
         },
         "firebird": {
-            "comment": "Prebuilt client; the build number in the file name is updated by hand.",
+            "comment": "Prebuilt client; the build number in the file name is updated by hand: Renovate's version bump fails with HTTP 404 until then.",
             "version": "5.0.4",
             "build": "1812",
             "url": "https://github.com/FirebirdSQL/firebird/releases/download/v{version}/Firebird-{version}.{build}-0-linux-{arch}.tar.gz",
@@ -429,7 +429,12 @@
                 "cp -a opt/firebird/lib/libfbclient.so* ${FLATPAK_DEST}/lib/",
                 "cp -a opt/firebird/include/. ${FLATPAK_DEST}/include/",
                 "install -m644 opt/firebird/firebird.msg opt/firebird/firebird.conf ${FLATPAK_DEST}/lib/firebird/"
-            ]
+            ],
+            "renovate": {
+                "datasource": "github-releases",
+                "package": "FirebirdSQL/firebird",
+                "extractVersion": "^v(?<version>.+)$"
+            }
         },
         "freetds": {
             "version": "1.5.19",
@@ -686,7 +691,12 @@
                 {
                     "version": "0.3.113",
                     "url": "https://codeberg.org/jmoyer/libaio/releases/download/libaio-{version}/libaio-{version}.tar.gz",
-                    "dest": "libaio"
+                    "dest": "libaio",
+                    "renovate": {
+                        "datasource": "forgejo-releases",
+                        "package": "jmoyer/libaio",
+                        "extractVersion": "^libaio-(?<version>.+)$"
+                    }
                 },
                 {
                     "version": "2.0.19",

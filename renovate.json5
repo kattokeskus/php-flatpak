@@ -63,6 +63,18 @@
             "enabled": false
         },
         {
+            // forgejo-releases defaults to code.forgejo.org
+            "matchDatasources": [
+                "forgejo-releases"
+            ],
+            "matchPackageNames": [
+                "jmoyer/libaio"
+            ],
+            "registryUrls": [
+                "https://codeberg.org"
+            ]
+        },
+        {
             "description": "pecl version extractor",
             "matchDatasources": [
                 "custom.pecl"
