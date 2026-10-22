@@ -199,8 +199,12 @@
                 "--with-pdo-firebird={prefix}"
             ],
             "tests": {
+                "comment": "PHP 8.4.27 and 8.5.12 fetch empty BLOBs as \"\" (php/php-src#23758); bug_76452 still expects NULL, which its replayed server payload gives only sometimes",
                 "with": [
                     "sockets"
+                ],
+                "skip": [
+                    "tests/bug_76452.phpt"
                 ],
                 "services": [
                     "firebird"
