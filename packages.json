@@ -685,7 +685,7 @@
                 },
                 {
                     "version": "0.3.113",
-                    "url": "https://releases.pagure.org/libaio/libaio-{version}.tar.gz",
+                    "url": "https://codeberg.org/jmoyer/libaio/releases/download/libaio-{version}/libaio-{version}.tar.gz",
                     "dest": "libaio"
                 },
                 {
