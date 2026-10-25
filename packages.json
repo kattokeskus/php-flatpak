@@ -441,7 +441,7 @@
             }
         },
         "freetds": {
-            "version": "1.5.19",
+            "version": "1.5.20",
             "url": "https://www.freetds.org/files/stable/freetds-{version}.tar.gz",
             "buildsystem": "autotools",
             "config-opts": [
