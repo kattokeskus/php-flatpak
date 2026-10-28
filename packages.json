@@ -678,7 +678,7 @@
             "comment": "Official build, minimal where there is one; only the server and client are unpacked. libaio and libnuma are missing from the SDK. --user=root: CI builds run as root.",
             "sources": [
                 {
-                    "version": "8.4.11",
+                    "version": "8.4.13",
                     "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-{version}-linux-glibc2.28-{arch}.tar.xz",
                     "arch": {
                         "x86_64": "x86_64-minimal",
