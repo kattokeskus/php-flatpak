@@ -1,7 +1,9 @@
 # PHP SDK extensions for org.freedesktop.Sdk
 
-PHP, Composer and PHP extensions as `org.freedesktop.Sdk//25.08` extensions,
-for developing and packaging PHP applications with Flatpak.
+PHP, Composer and PHP extensions as `org.freedesktop.Sdk` extensions, for
+developing and packaging PHP applications with Flatpak. Every package is built
+for each SDK branch from `sdk.min` to `sdk.max` in [packages.json](packages.json),
+the newest `org.freedesktop.Sdk//26.08`.
 
 | Package | |
 | --- | --- |
@@ -21,8 +23,11 @@ imap: its c-client library is unmaintained.
 ```sh
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak remote-add --if-not-exists kattokeskus-php https://kattokeskus.github.io/php-flatpak/kattokeskus-php.flatpakrepo
-flatpak install kattokeskus-php org.freedesktop.Sdk.Extension.kattokeskus-php84//25.08
+flatpak install kattokeskus-php org.freedesktop.Sdk.Extension.kattokeskus-php84//26.08
 ```
+
+The branch is your app's SDK branch; an older one is there until `sdk.min` is
+raised past it.
 
 IDE (VS Code, GNOME Builder) - the PHP package picks up every installed
 extension package:
@@ -44,20 +49,22 @@ build-commands:
   - /usr/lib/sdk/kattokeskus-php84/install.sh   # PHP at runtime: copies it into /app
 ```
 
-A bundle installs without a repository: `flatpak install --user <id>-<arch>.flatpak`.
+A bundle installs without a repository: `flatpak install --user <id>-<branch>-<arch>.flatpak`.
 vips is libvips for the [php-vips](https://github.com/libvips/php-vips)
 Composer package and needs the ffi package as well.
 
 ## Building
 
 ```sh
-flatpak install flathub org.freedesktop.Sdk//25.08
+flatpak install flathub org.freedesktop.Sdk//26.08         # and each older branch built
 
-./build.sh                                                  # every package
+./build.sh                                                  # every package, every SDK branch
 ./build.sh org.freedesktop.Sdk.Extension.kattokeskus-php84  # just these
+./build.sh org.freedesktop.Sdk.Extension.kattokeskus-php84//26.08  # on one branch
+SDK=26.08 ./build.sh                                        # every package on one branch
 INSTALL=1 ./build.sh                                        # and install --user
 TESTS=0 ./build.sh                                          # without test suites
-BUNDLES=bundles ./build.sh                                  # and bundles/<id>-<arch>.flatpak
+BUNDLES=bundles ./build.sh                                  # and bundles/<id>-<branch>-<arch>.flatpak
 ```
 
 Needs python3 and flatpak-builder (else it runs `org.flatpak.Builder`; from
@@ -71,17 +78,20 @@ for the host's architecture; CI builds each one in `arches`.
 Results are images `ghcr.io/kattokeskus/php-flatpak/<name>` holding the bundles
 of every architecture (the same for each platform), tagged
 `build-<fingerprint>`; a package whose tag exists is not built again. The
-fingerprint (`./generate.py --plan`) covers the manifest with its source
-checksums, local files, the architectures and the packages it builds against.
-On main they also get `8.4.26`, `6.3.0-php8.4.26` (PECL), `2.9.3` (Composer)
-and `latest`.
+fingerprint (`./generate.py --plan`) covers the manifest with its SDK branch and
+source checksums, local files, the architectures and the packages it builds
+against. On main they also get `8.4.26-sdk25.08`, `6.3.0-php8.4.26-sdk25.08`
+(PECL), `2.9.3-sdk25.08` (Composer) and `sdk25.08` for each branch; the newest
+branch's also `8.4.26`, `6.3.0-php8.4.26`, `2.9.3` and `latest`.
 
 [build.yaml](.github/workflows/build.yaml) runs on pull requests, pushes to main
 and by hand, on `ubuntu-26.04` (`ubuntu-26.04-arm` for aarch64): plan → php →
-composer and extensions ([package.yaml](.github/workflows/package.yaml): the
-generated manifest built with
-[flatpak-builder](https://github.com/marketplace/actions/flatpak-builder);
-`MAX_PARALLEL`, default 4) → on main, tag and pages: every package as a flatpak
+composer and extensions, one job for each SDK branch and package
+([package.yaml](.github/workflows/package.yaml): the generated manifest built
+with [flatpak-builder](https://github.com/marketplace/actions/flatpak-builder)
+in the branch's `freedesktop-<branch>` container; `MAX_PARALLEL`, default 4;
+by hand, `packages` takes ids or `<id>//<branch>`) → on main, tag and pages:
+every package on every branch as a flatpak
 repository on GitHub Pages, signed with the key in secrets `GPG_PRIVATE_KEY`,
 `GPG_PASSPHRASE` and variables `GPG_KEY_ID`, `GPG_KEY_GREP` (its keygrip). A pull
 request builds and pushes the images; main, after the merge, finds them.
@@ -102,7 +112,8 @@ writes the Pages index.
 | --- | --- |
 | `name` | id prefix: `kattokeskus` |
 | `arches` | the architectures CI builds |
-| `sdk`, `composer.version` | runtime and branch; Composer release |
+| `sdk.id`, `.min`, `.max` | runtime; its branches built, one a year (`YY.08`): `max` follows Renovate, `min` is raised by hand |
+| `composer.version` | Composer release |
 | `php.config-opts`, `.ini`, `.patches` | for all versions; `{prefix}`, `{minor}` expanded |
 | `php.versions.<minor>` | release, plus its own `config-opts`, `ini`, `patches` |
 | `extensions.<name>` | see below |

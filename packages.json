@@ -6,7 +6,8 @@
     ],
     "sdk": {
         "id": "org.freedesktop.Sdk",
-        "branch": "25.08"
+        "min": "25.08",
+        "max": "26.08"
     },
     "composer": {
         "version": "2.11.1"

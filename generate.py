@@ -3,11 +3,14 @@
 
     ./generate.py                                                         # every package
     ./generate.py org.freedesktop.Sdk.Extension.kattokeskus-php84-mysqli  # just these
+    ./generate.py org.freedesktop.Sdk.Extension.kattokeskus-php84//25.08  # on one SDK branch
+    ./generate.py --sdk=25.08                                             # every package on it
     ./generate.py --tests                                                 # with run-tests
     ./generate.py --plan                                                  # fingerprints, tags (JSON)
     ./generate.py --index <url> <homepage>                                # the Pages index (HTML)
 
-Manifests go to build/, PHP packages first: the others build against them.
+Every package is built for each SDK branch from sdk.min to sdk.max. Manifests
+go to build/<id>-<branch>.json, PHP packages first: the others build against them.
 Without --tests the test commands are there but off, as flatpak-builder has
 no option to turn them on (the flatpak-builder action's run-tests does).
 A source is downloaded once for its sha256, straight into flatpak-builder's
@@ -90,6 +93,19 @@ def arch_sources(config, kind, spec, cache, **extra):
             for arch in sorted(config["arches"])]
 
 
+def sdk_branches(config):
+    """The SDK branches from sdk.min to sdk.max, oldest first: one a year, YY.08."""
+    sdk = config["sdk"]
+    (first, month), (last, last_month) = (b.split(".") for b in (sdk["min"], sdk["max"]))
+    if month != last_month or int(first) > int(last):
+        sys.exit(f"error: sdk: no yearly branches from {sdk['min']} to {sdk['max']}")
+    return [f"{year}.{month}" for year in range(int(first), int(last) + 1)]
+
+
+def ref(manifest_id, branch):  # as in flatpak install <id>//<branch>
+    return f"{manifest_id}//{branch}"
+
+
 def php_name(config, minor):  # 8.4 -> kattokeskus-php84
     return f"{config['name']}-php" + minor.replace(".", "")
 
@@ -108,14 +124,14 @@ def write_ini(path, lines):
     return f"printf '%s\\n' {' '.join(json.dumps(line) for line in lines)} > {path}"
 
 
-def base_manifest(config, name, **build_options):
+def base_manifest(config, branch, name, **build_options):
     sdk = config["sdk"]
     prefix = f"/usr/lib/sdk/{name}"
     return {
         "id": ID_PREFIX + name,
-        "branch": sdk["branch"],
+        "branch": branch,
         "runtime": sdk["id"],
-        "runtime-version": sdk["branch"],
+        "runtime-version": branch,
         "sdk": sdk["id"],
         "build-extension": True,
         "separate-locales": False,
@@ -129,7 +145,7 @@ def base_manifest(config, name, **build_options):
     }
 
 
-def php_manifest(config, minor, cache):
+def php_manifest(config, branch, minor, cache):
     php = config["php"]
     release = php["versions"][minor]
     name = php_name(config, minor)
@@ -158,7 +174,7 @@ def php_manifest(config, minor, cache):
     )
 
     return {
-        **base_manifest(config, name, **{"prepend-path": f"{prefix}/bin"}),
+        **base_manifest(config, branch, name, **{"prepend-path": f"{prefix}/bin"}),
         # man pages and empty dirs; include/ stays for the extension packages
         "cleanup": ["/php", "/var"],
         "modules": [
@@ -194,14 +210,14 @@ def php_manifest(config, minor, cache):
     }
 
 
-def composer_manifest(config, cache):
+def composer_manifest(config, branch, cache):
     """One Composer for all PHP versions; it runs on the php first on PATH."""
     name = composer_name(config)
     version = config["composer"]["version"]
     php_ids = [ID_PREFIX + php_name(config, m) for m in config["php"]["versions"]]
     substitute = f"sed -e 's|@NAME@|{name}|g'"
     return {
-        **base_manifest(config, name),
+        **base_manifest(config, branch, name),
         "sdk-extensions": php_ids,  # for the test
         "modules": [
             {
@@ -377,7 +393,7 @@ def ext_tests(config, ext, spec, directive, subdir, expand, php_config, cache):
     return {"sources": sources, "commands": commands, "network": tests.get("network", False)}
 
 
-def ext_manifest(config, minor, ext, cache):
+def ext_manifest(config, branch, minor, ext, cache):
     spec = config["extensions"][ext]
     base = php_name(config, minor)
     name = f"{base}-{ext}"
@@ -460,20 +476,24 @@ def ext_manifest(config, minor, ext, cache):
         modules.append(module)
 
     return {
-        **base_manifest(config, name, **build_options),
+        **base_manifest(config, branch, name, **build_options),
         "sdk-extensions": [ID_PREFIX + base],
         "modules": modules,
     }
 
 
 def packages(config):
-    """Every package as (id, manifest function, arguments), PHP first."""
+    """Every package on every SDK branch as (id, branch, manifest function,
+    arguments), PHP first on each branch."""
     minors = list(config["php"]["versions"])
-    result = [(ID_PREFIX + php_name(config, m), php_manifest, (m,)) for m in minors]
-    result.append((ID_PREFIX + composer_name(config), composer_manifest, ()))
-    for ext, spec in config.get("extensions", {}).items():
-        for m in spec.get("php", minors):
-            result.append((f"{ID_PREFIX}{php_name(config, m)}-{ext}", ext_manifest, (m, ext)))
+    result = []
+    for branch in sdk_branches(config):
+        result += [(ID_PREFIX + php_name(config, m), branch, php_manifest, (m,)) for m in minors]
+        result.append((ID_PREFIX + composer_name(config), branch, composer_manifest, ()))
+        for ext, spec in config.get("extensions", {}).items():
+            for m in spec.get("php", minors):
+                result.append((f"{ID_PREFIX}{php_name(config, m)}-{ext}", branch, ext_manifest,
+                               (m, ext)))
     return result
 
 
@@ -497,19 +517,21 @@ def fingerprint(manifest, needs, arches):
     return digest.hexdigest()[:12]
 
 
-def describe(config, make, args):
-    """A package's kind, what it builds against, its version and its tags."""
+def describe(config, branch, make, args):
+    """A package's kind, what it builds against (refs on its branch), its
+    version and its tags."""
     if make is php_manifest:
         minor, = args
         version = config["php"]["versions"][minor]["version"]
         return "php", [], version, [version]
     if make is composer_manifest:
         version = config["composer"]["version"]
-        return ("composer", [ID_PREFIX + php_name(config, m) for m in config["php"]["versions"]],
+        return ("composer", [ref(ID_PREFIX + php_name(config, m), branch)
+                             for m in config["php"]["versions"]],
                 version, [version])
     minor, ext = args
     spec = config["extensions"][ext]
-    needs = [ID_PREFIX + php_name(config, minor)]
+    needs = [ref(ID_PREFIX + php_name(config, minor), branch)]
     php_version = config["php"]["versions"][minor]["version"]
     if spec["source"] == "bundled":
         return "extension", needs, php_version, [php_version]
@@ -518,23 +540,30 @@ def describe(config, make, args):
 
 
 def plan(config, cache):
-    """Every package with what it needs, its fingerprint and its tags."""
+    """Every package on every SDK branch with what it needs, its fingerprint
+    and its tags."""
     arches = config["arches"]
+    newest = sdk_branches(config)[-1]
     result, fingerprints = [], {}
-    for manifest_id, make, args in packages(config):
-        kind, needs, version, tags = describe(config, make, args)
-        fingerprints[manifest_id] = fingerprint(make(config, *args, cache),
-                                                [fingerprints[n] for n in needs], arches)
+    for manifest_id, branch, make, args in packages(config):
+        kind, needs, version, tags = describe(config, branch, make, args)
+        package = ref(manifest_id, branch)
+        fingerprints[package] = fingerprint(make(config, branch, *args, cache),
+                                            [fingerprints[n] for n in needs], arches)
         result.append({
+            "ref": package,
             "id": manifest_id,
             "name": manifest_id[len(ID_PREFIX):],
+            "sdk": branch,
             "kind": kind,
             "needs": needs,
-            "fingerprint": fingerprints[manifest_id],
+            "fingerprint": fingerprints[package],
             "arches": arches,
             "platforms": ",".join(PLATFORMS[arch] for arch in arches),
             "version": version,
-            "tags": tags + ["latest"],
+            # 8.4.27-sdk25.08 and sdk25.08; the newest branch also 8.4.27 and latest
+            "tags": [f"{tag}-sdk{branch}" for tag in tags] + [f"sdk{branch}"]
+                    + (tags + ["latest"] if branch == newest else []),
         })
     return result
 
@@ -556,10 +585,13 @@ def index(config, url, homepage):
     esc = html.escape
     title = f"{config['name'].capitalize()} PHP"
     remote = f"{config['name']}-php"
-    branch = config["sdk"]["branch"]
+    branches = sdk_branches(config)
     php, extensions, composer = {}, {}, None
-    for manifest_id, make, args in packages(config):
-        kind, _, version, _ = describe(config, make, args)
+    # every branch has the same packages
+    for manifest_id, branch, make, args in packages(config):
+        if branch != branches[-1]:
+            continue
+        kind, _, version, _ = describe(config, branch, make, args)
         if kind == "php":
             php[args[0]] = (manifest_id, version)
         elif kind == "composer":
@@ -568,7 +600,8 @@ def index(config, url, homepage):
             extensions.setdefault(args[0], []).append((args[1], version, manifest_id))
 
     def install(manifest_id):
-        return f"<pre>flatpak install {esc(remote)} {esc(manifest_id)}//{esc(branch)}</pre>"
+        return "<pre>" + "\n".join(f"flatpak install {esc(remote)} {esc(ref(manifest_id, b))}"
+                                   for b in reversed(branches)) + "</pre>"
 
     out = [
         "<!DOCTYPE html>",
@@ -581,8 +614,9 @@ def index(config, url, homepage):
         "</head>",
         "<body>",
         f"<h1>{esc(title)}</h1>",
-        f"<p>PHP, Composer and PHP extensions as <code>{esc(config['sdk']['id'])}//{esc(branch)}</code>"
-        f" extensions, for {esc(' and '.join(config['arches']))}."
+        "<p>PHP, Composer and PHP extensions as "
+        + ", ".join(f"<code>{esc(ref(config['sdk']['id'], b))}</code>" for b in reversed(branches))
+        + f" extensions, for {esc(' and '.join(config['arches']))}."
         f' Usage and sources: <a href="{esc(homepage)}">{esc(homepage)}</a>.</p>',
         "<pre>flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo",
         f"flatpak remote-add --if-not-exists {esc(remote)} {esc(url)}/{esc(remote)}.flatpakrepo</pre>",
@@ -621,21 +655,28 @@ def main(argv):
         return
 
     tests = "--tests" in argv
-    ids = [a for a in argv if a != "--tests"]
-    selected = [p for p in packages(config) if not ids or p[0] in ids]
-    unknown = set(ids) - {p[0] for p in selected}
+    sdks = [a.split("=", 1)[1] for a in argv if a.startswith("--sdk=")]
+    unknown = set(sdks) - set(sdk_branches(config))
+    if unknown:
+        sys.exit(f"error: no such SDK branch: {' '.join(sorted(unknown))}")
+    # an id is the package on every branch, id//branch on one
+    ids = [a for a in argv if a != "--tests" and not a.startswith("--sdk=")]
+    every = packages(config)
+    unknown = set(ids) - {n for p in every for n in (p[0], ref(p[0], p[1]))}
     if unknown:
         sys.exit(f"error: no such package: {' '.join(sorted(unknown))}")
+    selected = [p for p in every
+                if (not ids or p[0] in ids or ref(p[0], p[1]) in ids) and (not sdks or p[1] in sdks)]
 
     OUT.mkdir(exist_ok=True)
     try:
-        for manifest_id, make, args in selected:
-            manifest = make(config, *args, cache)
+        for manifest_id, branch, make, args in selected:
+            manifest = make(config, branch, *args, cache)
             if tests:
                 for module in manifest["modules"]:
                     if "test-commands" in module:
                         module["run-tests"] = True
-            path = OUT / f"{manifest_id}.json"
+            path = OUT / f"{manifest_id}-{branch}.json"
             path.write_text(json.dumps(manifest, indent=4) + "\n")
             print(path.relative_to(ROOT))
     finally:

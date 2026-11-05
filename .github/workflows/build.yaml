@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       packages:
-        description: 'Package ids to build, space-separated; empty for all'
+        description: 'Package ids (every SDK branch) or id//branch to build, space-separated; empty for all'
         required: false
         default: ""
         type: string
@@ -37,11 +37,13 @@ jobs:
   plan:
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
       options: --privileged
     permissions:
       contents: read
       packages: read
+    # one matrix entry per SDK branch and package: sdk+php, sdk (composer),
+    # sdk+php+extension
     outputs:
       php: ${{ steps.plan.outputs.php }}
       composer: ${{ steps.plan.outputs.composer }}
@@ -71,37 +73,38 @@ jobs:
           token=$(curl -sf -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
             "https://ghcr.io/token?scope=repository:${GITHUB_REPOSITORY}:pull" | jq -r .token)
           # packages whose image for the fingerprint is missing
-          missing=$(jq -r '.[] | "\(.id) \(.name) \(.fingerprint)"' plan.json |
-            while read -r id name fingerprint; do
+          missing=$(jq -r '.[] | "\(.ref) \(.name) \(.fingerprint)"' plan.json |
+            while read -r ref name fingerprint; do
               curl -sfI -o /dev/null -H "Authorization: Bearer $token" \
                 -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
-                "https://ghcr.io/v2/${GITHUB_REPOSITORY}/${name}/manifests/build-${fingerprint}" || echo "$id"
+                "https://ghcr.io/v2/${GITHUB_REPOSITORY}/${name}/manifests/build-${fingerprint}" || echo "$ref"
             done | jq -Rsc 'split("\n") - [""]')
 
           # the selected packages that are missing (or all with force), and
-          # whatever they build against that is missing
+          # whatever they build against that is missing; packages are refs,
+          # id//branch: an id selects it on every SDK branch
           jq -r --argjson missing "$missing" --arg packages "$PACKAGES" --arg force "$FORCE" \
             --arg prefix "ghcr.io/${GITHUB_REPOSITORY}" '
             def image: "\($prefix)/\(.name)";
             def tag: "build-\(.fingerprint)";
-            INDEX(.id) as $by_id
+            INDEX(.ref) as $by_ref
             | ($packages | split(" ") - [""]) as $wanted
-            | (if $wanted == [] then map(.id) else $wanted end) as $selected
-            | ($selected - map(.id)) as $unknown
+            | ($wanted - map(.id, .ref)) as $unknown
             | if $unknown != [] then error("no such package: \($unknown | join(" "))") else . end
+            | [.[] | select($wanted == [] or IN(.id, .ref; $wanted[])) | .ref] as $selected
             | [$selected[] | select($force == "true" or IN($missing[]))] as $build
-            | ($build + [$build[] | $by_id[.].needs[] | select(IN($missing[]))]) as $build
+            | ($build + [$build[] | $by_ref[.].needs[] | select(IN($missing[]))]) as $build
             | (["php", "composer", "extension"][] as $kind
-                | map(select(.kind == $kind and IN(.id; $build[]))
-                      | {id, name, image: image, tag: tag, version, arches: (.arches | tojson),
-                         platforms, needs: ([.needs[] | $by_id[.] | "\(image):\(tag)"] | tojson)})
+                | map(select(.kind == $kind and IN(.ref; $build[]))
+                      | {id, name, sdk, image: image, tag: tag, version, arches: (.arches | tojson),
+                         platforms, needs: ([.needs[] | $by_ref[.] | "\(image):\(tag)"] | tojson)})
                 | "\($kind)=\(tojson)"),
-              "tags=\(map(select(IN(.id; $selected[])) | {image: image, from: tag, tags}) | tojson)",
+              "tags=\(map(select(IN(.ref; $selected[])) | {image: image, from: tag, tags}) | tojson)",
               "images=\(map("\(image):\(tag)") | tojson)"
             ' plan.json >> "$GITHUB_OUTPUT"
 
   php:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} (${{ matrix.sdk }})
     needs: plan
     if: needs.plan.outputs.php != '[]'
     permissions:
@@ -115,6 +118,7 @@ jobs:
     with: &package
       id: ${{ matrix.id }}
       name: ${{ matrix.name }}
+      sdk: ${{ matrix.sdk }}
       image: ${{ matrix.image }}
       tag: ${{ matrix.tag }}
       version: ${{ matrix.version }}
@@ -124,7 +128,7 @@ jobs:
       tests: ${{ github.event_name != 'workflow_dispatch' || inputs.tests }}
 
   composer:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} (${{ matrix.sdk }})
     needs: [plan, php]
     if: >-
       !cancelled() && needs.plan.result == 'success' &&
@@ -140,7 +144,7 @@ jobs:
     with: *package
 
   extension:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} (${{ matrix.sdk }})
     needs: [plan, php]
     if: >-
       !cancelled() && needs.plan.result == 'success' &&
@@ -193,7 +197,7 @@ jobs:
       needs.plan.result == 'success' && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-26.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
       options: --privileged
     permissions:
       contents: read
