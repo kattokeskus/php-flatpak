@@ -490,7 +490,7 @@
             }
         },
         "libpq": {
-            "version": "18.6",
+            "version": "18.7",
             "url": "https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.bz2",
             "buildsystem": "simple",
             "build-commands": [
