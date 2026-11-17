@@ -461,7 +461,7 @@
             }
         },
         "imagemagick": {
-            "version": "7.1.2-35",
+            "version": "7.1.2-36",
             "url": "https://github.com/ImageMagick/ImageMagick/archive/refs/tags/{version}.tar.gz",
             "buildsystem": "autotools",
             "config-opts": [
