@@ -10,7 +10,7 @@
         "max": "26.08"
     },
     "composer": {
-        "version": "2.11.2"
+        "version": "2.11.3"
     },
     "php": {
         "config-opts": [
