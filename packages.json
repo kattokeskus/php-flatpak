@@ -55,13 +55,21 @@
             },
             "8.5": {
                 "version": "8.5.12"
+            },
+            "8.6": {
+                "version": "8.6.0"
             }
         }
     },
     "extensions": {
         "apcu": {
+            "comment": "APCu 5.1.28 does not build on PHP 8.6 (no EMPTY_SWITCH_DEFAULT_CASE, XtOffsetOf): add 8.6 with the release that does.",
             "source": "pecl",
-            "version": "5.1.28"
+            "version": "5.1.28",
+            "php": [
+                "8.4",
+                "8.5"
+            ]
         },
         "bcmath": {
             "source": "bundled"
@@ -122,8 +130,13 @@
             "source": "bundled"
         },
         "imagick": {
+            "comment": "Imagick 3.8.1 does not build on PHP 8.6 (no XtOffsetOf, zval_dtor): add 8.6 with the release that does.",
             "source": "pecl",
             "version": "3.8.1",
+            "php": [
+                "8.4",
+                "8.5"
+            ],
             "deps": [
                 "imagemagick"
             ],
@@ -272,8 +285,13 @@
             }
         },
         "redis": {
+            "comment": "phpredis 6.3.0 does not build on PHP 8.6 (no INI_INT, INI_STR); 6.4.0RC1 does: add 8.6 with 6.4.0.",
             "source": "pecl",
             "version": "6.3.0",
+            "php": [
+                "8.4",
+                "8.5"
+            ],
             "config-opts": [
                 "--enable-redis-lzf",
                 "--enable-redis-zstd",
@@ -317,8 +335,13 @@
             ]
         },
         "spx": {
+            "comment": "SPX 0.4.22 stops on PHP 8.6 with #error (5.4 to 8.5): add 8.6 with the release that supports it.",
             "source": "url",
             "version": "0.4.22",
+            "php": [
+                "8.4",
+                "8.5"
+            ],
             "url": "https://github.com/NoiseByNorthwest/php-spx/archive/refs/tags/v{version}.tar.gz",
             "config-opts": [
                 "--with-spx-assets-dir={prefix}/share/misc/php-spx/assets"
@@ -376,8 +399,13 @@
             ]
         },
         "xdebug": {
+            "comment": "Xdebug 3.5 refuses PHP 8.6 at configure: add 8.6 with the Xdebug release that supports it.",
             "source": "pecl",
             "version": "3.5.3",
+            "php": [
+                "8.4",
+                "8.5"
+            ],
             "zend": true,
             "priority": 50
         },

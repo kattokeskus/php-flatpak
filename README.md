@@ -7,16 +7,18 @@ the newest `org.freedesktop.Sdk//26.08`.
 
 | Package | |
 | --- | --- |
-| `org.freedesktop.Sdk.Extension.kattokeskus-php84`, `-php85` | PHP 8.4, 8.5 |
+| `org.freedesktop.Sdk.Extension.kattokeskus-php84`, `-php85`, `-php86` | PHP 8.4, 8.5, 8.6 |
 | `org.freedesktop.Sdk.Extension.kattokeskus-composer` | Composer, runs on the enabled PHP |
-| `org.freedesktop.Sdk.Extension.kattokeskus-php84-<ext>`, `-php85-<ext>` | an extension |
+| `org.freedesktop.Sdk.Extension.kattokeskus-php84-<ext>`, `-php85-<ext>`, `-php86-<ext>` | an extension |
 
 Extensions: apcu, bcmath, bz2, calendar, dba, enchant, exif, ffi, ftp, gd,
 gettext, gmp, imagick, intl, ldap, mysqli, pcntl, pdo_dblib, pdo_firebird,
 pdo_mysql, pdo_odbc, pdo_pgsql, pgsql, redis, shmop, snmp, soap, sockets, sodium,
 spx, sysvmsg, sysvsem, sysvshm, tidy, vips, xdebug, xhprof, xsl, zip. pdo,
 pdo_sqlite, opcache and the other common extensions are built into PHP. No
-imap: its c-client library is unmaintained.
+imap: its c-client library is unmaintained. Not yet for PHP 8.6: apcu, imagick,
+redis, spx and xdebug, whose releases do not build on it (`php` in
+packages.json).
 
 ## Usage
 
